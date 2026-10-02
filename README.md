@@ -1,4 +1,5 @@
-# PFNs
+# PFNs-fork
+> Fork of [this repo](https://github.com/SamuelGabriel/PFNs).
 
 Prior-data Fitted Networks (PFNs, https://arxiv.org/abs/2112.10510) are transformer-based models trained to approximate Bayesian prediction.
 They are trained to do this via supervised in-context learning on datasets randomly drawn from a prior.
@@ -18,20 +19,29 @@ def get_dataset_sample():
 
 **Check out our [tutorial](https://colab.research.google.com/drive/12YpI99LkuFeWcuYHt_idl142DqX7AaJf) to train your own ridge regression PFN.**
 
-### Install with pip
+### Install with uv
 
-This way of installing allows you to use the package everywhere and still be able to edit files.
-You should use a pytorch compatible python version (oftentimes they don't support the latest version).
+The project requires Python 3.10 or newer. `uv sync` installs the project in editable mode along with
+the default development dependencies. Use a PyTorch-compatible Python version, as PyTorch does not
+always support the latest Python release.
 ```bash
-git clone https://github.com/automl/PFNs.git
-cd PFNs
-pip install -e .
+git clone https://github.com/eschmidt42/PFNs-fork.git
+cd PFNs-fork
+uv sync
+```
+
+Optional dependencies are available for notebooks, Bayesian optimization benchmarks, and priors:
+```bash
+uv sync --group notebooks
+uv sync --extra benchmarks
+uv sync --extra priors
 ```
 
 ### Developing
-We use a CI, the parts of which you can run before locally:
-1. Tests: To run tests simply use `pytest tests`.
-2. Formatting: Use `pre-commit` (install with `pip install pre-commit`, then `pre-commit install`) and run manually it with `pre-commit run --all-files --show-diff-on-failure`
+
+We use CI; you can run the same checks locally:
+1. Tests: `uv run pytest tests`.
+2. Formatting: Install the pre-commit hooks with `uv run pre-commit install`, then run them with `uv run pre-commit run --all-files --show-diff-on-failure`.
 
 
 ### Get Started
@@ -57,9 +67,9 @@ There is a BO version of this repo, with pretrained models at [github.com/automl
 The two repos share a lot of the code, but the other is not anymore actively maintained.
 You can also train your own models with our tutorial notebook [here](Tutorial_Training_for_BO.ipynb).
 
-To run all BayesOpt experiments, please install this package with the `benchmarks` option:
+To run all BayesOpt experiments, install the `benchmarks` extra:
 ```bash
-pip install -e .[benchmarks]
+uv sync --extra benchmarks
 ```
 
 ### Bayes' Power for Explaining In-Context Learning Generalizations
@@ -68,9 +78,9 @@ pip install -e .[benchmarks]
 
 This repository contains the code for the paper "Bayes' Power for Explaining In-Context Learning Generalizations".
 
-Install in editable mode:
+Install the package and its runtime dependencies without the development dependencies:
 ```bash
-pip install -e .
+uv sync --no-dev
 ```
 
 We have a set of notebooks in this repository to reproduce the results of our paper.
