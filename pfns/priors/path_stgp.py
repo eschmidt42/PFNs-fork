@@ -37,9 +37,7 @@ def _sample_paths_inner(batch_size, num_features, hyperparameters=None):
     """
     if hyperparameters is None:
         hyperparameters = {}
-    base_class = (
-        RBFKernel if hyperparameters.get("use_rbf_kernel", True) else MaternKernel
-    )
+    base_class = RBFKernel if hyperparameters.get("use_rbf_kernel", True) else MaternKernel
     lengthscale_prior = LogNormalPrior(
         loc=hyperparameters.get("lengthscale_loc_constant_add", sqrt(2))
         + log(num_features) * hyperparameters.get("lengthscale_loc_feature_mul", 0.5),
@@ -72,21 +70,15 @@ def _sample_paths_inner(batch_size, num_features, hyperparameters=None):
     )
 
     if (
-        additive_cosine_per_dim_prob := hyperparameters.get(
-            "additive_cosine_per_dim_prob", 0.0
-        )
+        additive_cosine_per_dim_prob := hyperparameters.get("additive_cosine_per_dim_prob", 0.0)
     ) > 0.0:
         additive_cosine_per_dim = (
             torch.rand(batch_size, num_features) < additive_cosine_per_dim_prob
         )
-        lengthscale = (
-            torch.rand(batch_size, num_features, dtype=torch.double) * 0.2 + 0.08
-        )
+        lengthscale = torch.rand(batch_size, num_features, dtype=torch.double) * 0.2 + 0.08
         gp_lengthscale = model.covar_module.lengthscale.view(batch_size, num_features)
         magnitude = (
-            torch.randn(batch_size, num_features, dtype=torch.double)
-            / 10
-            / gp_lengthscale
+            torch.randn(batch_size, num_features, dtype=torch.double) / 10 / gp_lengthscale
         )  # very rough...
         offset = torch.rand(batch_size, num_features, dtype=torch.double)
 
@@ -98,9 +90,7 @@ def _sample_paths_inner(batch_size, num_features, hyperparameters=None):
                 (
                     magnitude.unsqueeze(1)
                     * torch.cos(
-                        2
-                        * torch.pi
-                        * (x / lengthscale.unsqueeze(1) + offset.unsqueeze(1)),
+                        2 * torch.pi * (x / lengthscale.unsqueeze(1) + offset.unsqueeze(1)),
                         dtype=torch.double,
                     )
                 ),
@@ -209,8 +199,7 @@ def sample_paths(batch_size, num_features, hyperparameters=None):
     # Sample independent GP paths for each region (2^num_splits regions)
     num_regions = 2**num_splits
     region_paths = [
-        _sample_paths_inner(batch_size, num_non_dummy, hyperparameters)
-        for _ in range(num_regions)
+        _sample_paths_inner(batch_size, num_non_dummy, hyperparameters) for _ in range(num_regions)
     ]
 
     # Sample split parameters (on original feature space, not reduced)
@@ -249,12 +238,11 @@ def sample_clustered_x(
     num_cluster_max: int = 1,
     max_std: float = 0.25,
 ):
-    """
-    This function samples a batch of inputs from normal distributions.
+    """This function samples a batch of inputs from normal distributions.
     Its outputs are all in [0,1], which is ensured by over-sampling (pad_factor)
     and then rejecting outside samples. In addition, we clamp the values to [0,1].
     """
-    num_clusters = torch.randint(1, num_cluster_max + 1, tuple()).item()
+    num_clusters = torch.randint(1, num_cluster_max + 1, ()).item()
 
     mean = torch.rand(batch_size, num_clusters, num_features)
     std = torch.rand(batch_size, num_clusters, num_features) * max_std
@@ -277,9 +265,7 @@ def sample_clustered_x(
     sorting_x = ((x >= 0.0) & (x <= 1.0)).sum(dim=-1)
     order = torch.argsort(sorting_x, dim=-1, stable=True, descending=True)
     print(f"{order.shape=}")
-    x = x.gather(
-        dim=1, index=order[:, :seq_len].unsqueeze(-1).expand(-1, -1, num_features)
-    )
+    x = x.gather(dim=1, index=order[:, :seq_len].unsqueeze(-1).expand(-1, -1, num_features))
     x = x.clamp(0, 1)
     return x
 
@@ -300,16 +286,12 @@ def sample_around_train_point(
     )
     train_x = torch.rand(batch_size, single_eval_pos, num_features)
     train_x_cutoffs = torch.rand(batch_size, single_eval_pos, num_features)
-    train_x[binary_features] = (
-        train_x[binary_features] > train_x_cutoffs[binary_features]
-    ).float()
+    train_x[binary_features] = (train_x[binary_features] > train_x_cutoffs[binary_features]).float()
 
     num_test_points = seq_len - single_eval_pos
     num_surrounding = int(num_test_points * surrounding_share)
 
-    normal_test_x = torch.rand(
-        batch_size, num_test_points - num_surrounding, num_features
-    )
+    normal_test_x = torch.rand(batch_size, num_test_points - num_surrounding, num_features)
 
     # Use shared utility for sampling around training points
     surrounding_test_x = sample_x_around_points(
@@ -418,9 +400,9 @@ def get_batch(
                 single_eval_pos,
             )
         else:
-            assert (sample_clustered_x_hp is None) or (
-                sample_clustered_x_hp == "none"
-            ), sample_clustered_x_hp
+            assert (sample_clustered_x_hp is None) or (sample_clustered_x_hp == "none"), (
+                sample_clustered_x_hp
+            )
             x = torch.rand(batch_size, seq_len, num_features)
 
         y = paths(x).squeeze(0)  # shape: (batch_size, seq_len)
@@ -430,9 +412,7 @@ def get_batch(
         noisy_y = add_noise(y, hyperparameters, no_noise)
 
     if hyperparameters["noisy_predictions"]:
-        target_y = add_noise(
-            y.expand(-1, -1, n_targets_per_input), hyperparameters, no_noise
-        )
+        target_y = add_noise(y.expand(-1, -1, n_targets_per_input), hyperparameters, no_noise)
     else:
         target_y = y.expand(-1, -1, n_targets_per_input)
 
@@ -469,9 +449,7 @@ def get_batch(
         target_y = target_y.clamp(min=0.0)
 
     # set ys to nan in training set
-    number_of_y_hidden = torch.randint(
-        0, hyperparameters.get("max_num_hidden_y", 0) + 1, tuple()
-    )
+    number_of_y_hidden = torch.randint(0, hyperparameters.get("max_num_hidden_y", 0) + 1, ())
     noisy_y[:, single_eval_pos - number_of_y_hidden : single_eval_pos] = torch.nan
 
     return Batch(x=x, y=noisy_y, target_y=target_y)

@@ -14,21 +14,21 @@ from functools import partial
 import numpy as np
 import torch
 import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.tensorboard import SummaryWriter
+
 from pfns import base_config
 from pfns.model import transformer_config
 from pfns.model.encoders import StyleEncoderConfig
 from pfns.model.transformer import TableTransformer
 from pfns.priors.utils import sample_x_around_points
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
 
 from .function_samplers import function_sampler  # noqa: F401
 from .utils import load_config_and_model
 
 
 def local_load(path: str, map_location: str | None = None) -> object:
-    """
-    Load a checkpoint from the local filesystem.
+    """Load a checkpoint from the local filesystem.
 
     Args:
         path: The path to the file to load.
@@ -41,8 +41,7 @@ def local_load(path: str, map_location: str | None = None) -> object:
 
 
 def local_exists(path: str) -> bool:
-    """
-    Check if a path exists on the local filesystem.
+    """Check if a path exists on the local filesystem.
 
     Args:
         path: The path to check.
@@ -54,8 +53,7 @@ def local_exists(path: str) -> bool:
 
 
 def local_save(obj, path: str):
-    """
-    Save an object to the local filesystem.
+    """Save an object to the local filesystem.
 
     Args:
         obj: The object to save.
@@ -102,9 +100,7 @@ class PathGenerationResult:
     choice_probs: list[torch.Tensor]
     current_num_features: int
     joint_steps: int
-    basemodel_ei_values: list[
-        torch.Tensor
-    ]  # EI values from unfinetuned basemodel for each step
+    basemodel_ei_values: list[torch.Tensor]  # EI values from unfinetuned basemodel for each step
     step_entropies: list[torch.Tensor]  # Entropy of distribution at each step
     step_max_probs: list[torch.Tensor]  # Max probability at each step
     step_sampled_probs: list[torch.Tensor]  # Probability of sampled action at each step
@@ -132,8 +128,7 @@ class PathGenerationResult:
                 setattr(self, field.name, value.to(device))
             elif isinstance(value, list):
                 new_list = [
-                    item.to(device) if isinstance(item, torch.Tensor) else item
-                    for item in value
+                    item.to(device) if isinstance(item, torch.Tensor) else item for item in value
                 ]
                 setattr(self, field.name, new_list)
         return self
@@ -141,9 +136,9 @@ class PathGenerationResult:
 
 @dataclass(frozen=True)
 class RewardConfig(base_config.BaseConfig):
-    reward_type: tp.Literal[
-        "raw", "quantile", "standardized", "log_quantile", "rs_equivalent"
-    ] = "raw"
+    reward_type: tp.Literal["raw", "quantile", "standardized", "log_quantile", "rs_equivalent"] = (
+        "raw"
+    )
     standardization_source: tp.Literal["batch", "draw"] = "draw"
     only_future: bool = False
     aggregation: str = (
@@ -174,17 +169,13 @@ class RewardConfig(base_config.BaseConfig):
 
     def __post_init__(self):
         if self.aggregation in ("max_imp", "max_sparse"):
-            assert (
-                self.only_future
-            ), f"{self.aggregation} does only make sense with future rewards."
+            assert self.only_future, f"{self.aggregation} does only make sense with future rewards."
         if self.aggregation.startswith("myopic_"):
-            assert (
-                self.only_future
-            ), f"{self.aggregation} does only make sense with future rewards."
+            assert self.only_future, f"{self.aggregation} does only make sense with future rewards."
             try:
                 window = int(self.aggregation.split("_")[1])
                 assert window >= 0, f"myopic window must be non-negative, got {window}"
-            except (IndexError, ValueError):
+            except IndexError, ValueError:
                 raise ValueError(
                     f"Invalid myopic aggregation format: {self.aggregation}. Expected 'myopic_X' where X is a non-negative integer."
                 )
@@ -230,21 +221,15 @@ class RewardConfig(base_config.BaseConfig):
 
         if self.only_future:
             if self.aggregation == "sum":
-                timestep_rewards = torch.cumsum(rewards_curr_pos.flip(-1), dim=-1).flip(
-                    -1
-                )
+                timestep_rewards = torch.cumsum(rewards_curr_pos.flip(-1), dim=-1).flip(-1)
             elif self.aggregation == "avgmax":
                 max_so_far = torch.cummax(rewards_curr_pos, dim=-1)[0]
                 timestep_rewards = torch.cumsum(max_so_far.flip(-1), dim=-1).flip(-1)
                 # normalize sums to be averages
-                num_remaining = torch.arange(
-                    seq_len, 0, -1, device=timestep_rewards.device
-                )
+                num_remaining = torch.arange(seq_len, 0, -1, device=timestep_rewards.device)
                 timestep_rewards = timestep_rewards / num_remaining.view(1, 1, -1)
             else:
-                timestep_rewards = torch.cummax(rewards_curr_pos.flip(-1), dim=-1)[
-                    0
-                ].flip(-1)
+                timestep_rewards = torch.cummax(rewards_curr_pos.flip(-1), dim=-1)[0].flip(-1)
                 if self.aggregation == "max_imp":  # try this with future rewards
                     # reward for the first one is a little random
                     # as it is against a baseline that is 0 starting
@@ -252,9 +237,7 @@ class RewardConfig(base_config.BaseConfig):
                     max_so_far = torch.cummax(rewards_curr_pos, dim=-1)[0]
                     timestep_improvement = timestep_rewards
                     timestep_improvement[..., 1:] -= max_so_far[..., :-1]
-                    average_y_first_guess = rewards_curr_pos[:, :, 0].mean(
-                        1, keepdim=True
-                    )
+                    average_y_first_guess = rewards_curr_pos[:, :, 0].mean(1, keepdim=True)
                     timestep_improvement[..., 0] -= average_y_first_guess
                     timestep_rewards = timestep_improvement.clamp(min=0.0)
                 elif self.aggregation == "max_sparse":
@@ -270,16 +253,12 @@ class RewardConfig(base_config.BaseConfig):
                     timestep_rewards = torch.zeros_like(rewards_curr_pos)
                     for i in range(seq_len):
                         end_idx = min(i + window + 1, seq_len)
-                        timestep_rewards[..., i] = rewards_curr_pos[..., i:end_idx].max(
-                            dim=-1
-                        )[0]
+                        timestep_rewards[..., i] = rewards_curr_pos[..., i:end_idx].max(dim=-1)[0]
                 else:
                     assert self.aggregation == "max", self.aggregation
         else:
             if self.aggregation == "sum":
-                timestep_rewards = rewards_curr_pos.sum(-1, keepdim=True).repeat(
-                    1, 1, seq_len
-                )
+                timestep_rewards = rewards_curr_pos.sum(-1, keepdim=True).repeat(1, 1, seq_len)
             elif self.aggregation == "avgmax":
                 # Average of cumulative max across the sequence
                 max_so_far = torch.cummax(rewards_curr_pos, dim=-1)[0]
@@ -287,9 +266,7 @@ class RewardConfig(base_config.BaseConfig):
                 timestep_rewards = avg_max.repeat(1, 1, seq_len)
             else:
                 assert self.aggregation == "max", self.aggregation
-                timestep_rewards = rewards_curr_pos.max(-1, keepdim=True)[0].repeat(
-                    1, 1, seq_len
-                )
+                timestep_rewards = rewards_curr_pos.max(-1, keepdim=True)[0].repeat(1, 1, seq_len)
 
         if self.standardization == "per_step_and_function":
             normalized_avg_rewards_future = (
@@ -318,10 +295,8 @@ class RewardConfig(base_config.BaseConfig):
             # generalize to any quantile, e.g. "top_0.1_per_function"
             try:
                 quantile = float(self.standardization.split("_")[1])
-            except (IndexError, ValueError):
-                raise ValueError(
-                    f"Invalid standardization format: {self.standardization}"
-                )
+            except IndexError, ValueError:
+                raise ValueError(f"Invalid standardization format: {self.standardization}")
             # cutoff top quantile
             quantile_cutoffs = timestep_rewards.view(batch_size, -1).sort(-1)[0][
                 :, -round(quantile * sub_batch_size * seq_len)
@@ -346,30 +321,22 @@ class RewardConfig(base_config.BaseConfig):
                 # Find the global peak across all trajectories in each sub-batch
                 # and use it to cut off rewards for all items
                 # Flatten sub_batch and seq_len to find global max per batch
-                flat_rewards = rewards_curr_pos.view(
-                    batch_size, sub_batch_size * seq_len
-                )
+                flat_rewards = rewards_curr_pos.view(batch_size, sub_batch_size * seq_len)
                 global_peak_flat_indices = flat_rewards.argmax(dim=-1)  # [batch_size]
                 # Convert flat index to seq_len index (the timestep of the global peak)
-                global_peak_timestep = (
-                    global_peak_flat_indices % seq_len
-                )  # [batch_size]
+                global_peak_timestep = global_peak_flat_indices % seq_len  # [batch_size]
                 # Create mask: positions after global peak timestep are True for all trajectories
-                after_peak_mask = position_indices.view(
-                    1, 1, -1
-                ) > global_peak_timestep.view(
+                after_peak_mask = position_indices.view(1, 1, -1) > global_peak_timestep.view(
                     batch_size, 1, 1
                 )  # [batch_size, sub_batch_size, seq_len]
             else:
                 assert self.no_reward_after_peak is True
                 # Original behavior: find peak per trajectory
-                peak_indices = rewards_curr_pos.argmax(
-                    dim=-1
-                )  # [batch_size, sub_batch_size]
+                peak_indices = rewards_curr_pos.argmax(dim=-1)  # [batch_size, sub_batch_size]
                 # Create a mask where positions after the peak are True
-                after_peak_mask = position_indices.view(
-                    1, 1, -1
-                ) > peak_indices.unsqueeze(-1)  # [batch_size, sub_batch_size, seq_len]
+                after_peak_mask = position_indices.view(1, 1, -1) > peak_indices.unsqueeze(
+                    -1
+                )  # [batch_size, sub_batch_size, seq_len]
 
             # Zero out rewards after the peak
             normalized_avg_rewards_future = torch.where(
@@ -417,16 +384,12 @@ class RLConfig(base_config.BaseConfig):
     choose_next_in_set: bool = False
     choice_set_size: int = 100
     super_choice_set_factor: float = 1.0
-    choice_set_top_share: float = (
-        0.5  # only relevant when super_choice_set_factor > 1.0
-    )
+    choice_set_top_share: float = 0.5  # only relevant when super_choice_set_factor > 1.0
     ei_selector: bool = False
     keep_head: bool = False
     num_features: int = 1  # Number of input features for choose_next_in_set mode
     mix_k_features_in_opt: int = 1
-    basemodel_ei_input: bool = (
-        False  # Pass EI from unfinetuned basemodel as input feature
-    )
+    basemodel_ei_input: bool = False  # Pass EI from unfinetuned basemodel as input feature
     binary_feature_likelihood: float = (
         0.0  # Probability that each feature is binary (0 or 1) in the choice set
     )
@@ -435,7 +398,9 @@ class RLConfig(base_config.BaseConfig):
     around_train_point_share: float = (
         0.0  # Fraction of options to sample around training points (0.0 = disabled)
     )
-    around_train_point_std: float = 0.01  # Standard deviation for Gaussian noise when sampling around training points
+    around_train_point_std: float = (
+        0.01  # Standard deviation for Gaussian noise when sampling around training points
+    )
 
     # Joint rollout training: keep trajectories identical for a random number of initial steps
     # None: disabled (default), train on all positions independently
@@ -447,7 +412,9 @@ class RLConfig(base_config.BaseConfig):
     # When bo_batch_size > 1, points within a batch don't see each other's y values
     # and rewards are copied from the last position in each batch to all positions
     bo_batch_size: int = 1
-    randomize_bo_batch_size: bool = False  # If True, sample bo_batch_size uniformly from 1 to bo_batch_size for each rollout
+    randomize_bo_batch_size: bool = (
+        False  # If True, sample bo_batch_size uniformly from 1 to bo_batch_size for each rollout
+    )
 
     # Random horizon: sample seq_len uniformly at random up to the specified value for each rollout
     randomize_seq_len: bool = False
@@ -460,9 +427,7 @@ class RLConfig(base_config.BaseConfig):
 
     # Checkpointing
     checkpoint_save_path: str | None = None  # Path to save checkpoints after each batch
-    checkpoint_load_path: str | None = (
-        None  # Path to load checkpoint from to resume training
-    )
+    checkpoint_load_path: str | None = None  # Path to load checkpoint from to resume training
 
     # Rollback on high loss
     rollback_loss_threshold: float | None = (
@@ -494,9 +459,7 @@ class RLConfig(base_config.BaseConfig):
 
     def __post_init__(self):
         if self.bo_batch_size > 1 and not self.choose_next_in_set:
-            raise ValueError(
-                "bo_batch_size > 1 is only supported when choose_next_in_set=True"
-            )
+            raise ValueError("bo_batch_size > 1 is only supported when choose_next_in_set=True")
         if self.binary_feature_likelihood > 0.0 and not self.choose_next_in_set:
             raise ValueError(
                 "binary_feature_likelihood > 0 is only supported when choose_next_in_set=True"
@@ -647,18 +610,15 @@ def generate_paths(
         assert choose_next_in_set, "We still need to implement the argmax selection."
 
     if basemodel_ei_input:
-        assert (
-            choose_next_in_set
-        ), "basemodel_ei_input only works with choose_next_in_set"
-        assert (
-            basemodel_for_ei is not None
-        ), "basemodel_for_ei must be provided when basemodel_ei_input=True"
+        assert choose_next_in_set, "basemodel_ei_input only works with choose_next_in_set"
+        assert basemodel_for_ei is not None, (
+            "basemodel_for_ei must be provided when basemodel_ei_input=True"
+        )
 
     # Sample which features are binary for this batch (consistent across all steps)
     if binary_feature_likelihood > 0.0:
         binary_features_mask = (
-            torch.rand(batch_size, current_num_features, device=device)
-            < binary_feature_likelihood
+            torch.rand(batch_size, current_num_features, device=device) < binary_feature_likelihood
         )
     else:
         binary_features_mask = None
@@ -725,9 +685,7 @@ def generate_paths(
 
         if choose_next_in_set:
             if ys is None:
-                x = torch.zeros(
-                    effective_batch_size, 0, current_num_features, device=device
-                )
+                x = torch.zeros(effective_batch_size, 0, current_num_features, device=device)
                 y = torch.zeros(effective_batch_size, 0, 1, device=device)
             else:
                 x, y = preprocess_train_x_and_y(
@@ -765,13 +723,9 @@ def generate_paths(
                         opts_list.append(candidates[perm])
                     else:
                         # Sample with replacement if we don't have enough candidates
-                        indices = torch.randint(
-                            0, n_candidates, (total_opts,), device=device
-                        )
+                        indices = torch.randint(0, n_candidates, (total_opts,), device=device)
                         opts_list.append(candidates[indices])
-                opts = torch.stack(
-                    opts_list, dim=0
-                )  # [batch_size, total_opts, features]
+                opts = torch.stack(opts_list, dim=0)  # [batch_size, total_opts, features]
             else:
                 # Calculate how many options should be sampled around training points
                 num_around_train = (
@@ -815,9 +769,7 @@ def generate_paths(
 
             # Apply binary feature restriction to options
             if binary_features_mask is not None:
-                binary_mask_expanded = binary_features_mask.unsqueeze(1).expand(
-                    -1, total_opts, -1
-                )
+                binary_mask_expanded = binary_features_mask.unsqueeze(1).expand(-1, total_opts, -1)
                 opts = torch.where(binary_mask_expanded, (opts > 0.5).float(), opts)
 
             if super_choice_set_factor < 1.0:
@@ -912,9 +864,7 @@ def generate_paths(
                 top_mask = torch.zeros(
                     effective_batch_size, total_opts, dtype=torch.bool, device=device
                 )
-                top_mask[torch.arange(effective_batch_size).unsqueeze(1), topk_inds] = (
-                    True
-                )
+                top_mask[torch.arange(effective_batch_size).unsqueeze(1), topk_inds] = True
 
                 # Indices of non-best (complement of top-k)
                 all_inds = (
@@ -932,12 +882,8 @@ def generate_paths(
                     combined_inds = topk_inds
 
                 # Subselect options and logits to the combined set
-                opts = opts[
-                    torch.arange(effective_batch_size).unsqueeze(1), combined_inds
-                ]
-                logits = logits[
-                    torch.arange(effective_batch_size).unsqueeze(1), combined_inds
-                ]
+                opts = opts[torch.arange(effective_batch_size).unsqueeze(1), combined_inds]
+                logits = logits[torch.arange(effective_batch_size).unsqueeze(1), combined_inds]
                 # Also subselect EI values if basemodel_ei_input is enabled
                 if basemodel_ei_input:
                     basemodel_ei = basemodel_ei[
@@ -952,9 +898,7 @@ def generate_paths(
 
             # Compute entropy, max prob, and sampled prob for tensorboard logging
             # Entropy: -sum(p * log(p)), using clamp to avoid log(0)
-            log_probs = logits.log_softmax(
-                dim=-1
-            )  # shape: [effective_batch_size, num_opts]
+            log_probs = logits.log_softmax(dim=-1)  # shape: [effective_batch_size, num_opts]
             probs = log_probs.exp()  # shape: [effective_batch_size, num_opts]
             entropy = -(probs * log_probs).sum(dim=-1)  # shape: [effective_batch_size]
             max_prob = probs.max(dim=-1).values  # shape: [effective_batch_size]
@@ -990,9 +934,7 @@ def generate_paths(
                 torch.nan,
                 device=device,
             )
-            logits = model(x=full_train_x, y=None, test_x=full_test_x)[:, :, 0].squeeze(
-                1
-            )
+            logits = model(x=full_train_x, y=None, test_x=full_test_x)[:, :, 0].squeeze(1)
 
             p_cdf = torch.rand(*logits.shape[:-1], device=device)
             pred = torch.stack(
@@ -1003,9 +945,7 @@ def generate_paths(
             ).clamp(0, 1)
 
         target_y, y = sampler(
-            pred.view(
-                batch_size, 1 if is_joint_step else sub_batch_size, current_num_features
-            )
+            pred.view(batch_size, 1 if is_joint_step else sub_batch_size, current_num_features)
         )
         # Flatten the result back to effective_batch_size
         y = y.view(effective_batch_size)
@@ -1017,9 +957,7 @@ def generate_paths(
             predictions = pred.view(effective_batch_size, 1, current_num_features)
         else:
             ys = torch.cat((ys, y.view(effective_batch_size, 1)), 1)
-            target_ys = torch.cat(
-                (target_ys, target_y.view(effective_batch_size, 1)), 1
-            )
+            target_ys = torch.cat((target_ys, target_y.view(effective_batch_size, 1)), 1)
             predictions = torch.cat(
                 (predictions, pred.view(effective_batch_size, 1, current_num_features)),
                 1,
@@ -1158,9 +1096,7 @@ def run_rl_training(
     is_main = rank == 0
 
     if is_main and distributed:
-        print(
-            f"Running in distributed mode: rank {rank}/{world_size}, local_rank {local_rank}"
-        )
+        print(f"Running in distributed mode: rank {rank}/{world_size}, local_rank {local_rank}")
 
     # Set seed (different per rank for diversity in trajectory generation)
     if rl_config.seed is not None:
@@ -1179,22 +1115,14 @@ def run_rl_training(
 
     if is_main:
         print(f"Loading base model from {rl_config.model_path}")
-    base_train_config, model = load_config_and_model(
-        rl_config.model_path, map_location="cpu"
-    )
+    base_train_config, model = load_config_and_model(rl_config.model_path, map_location="cpu")
 
-    if (
-        rl_config.choose_next_in_set
-        and not rl_config.ei_selector
-        and not rl_config.keep_head
-    ):
+    if rl_config.choose_next_in_set and not rl_config.ei_selector and not rl_config.keep_head:
         # edit model head to be a simple 1 size prediction
 
         base_train_config = replace(
             base_train_config,
-            model=replace(
-                base_train_config.model, decoder_dict={"standard": (None, 1)}
-            ),
+            model=replace(base_train_config.model, decoder_dict={"standard": (None, 1)}),
         )
         model_with_single_output = base_train_config.model.create_model()
         og_statedict = model.state_dict()
@@ -1380,9 +1308,7 @@ def run_rl_training(
                 stage_start = 0
                 for i, length in enumerate(curriculum_schedule):
                     if length != current_len:
-                        stages.append(
-                            (current_len, stage_start, i - 1, i - stage_start)
-                        )
+                        stages.append((current_len, stage_start, i - 1, i - stage_start))
                         current_len = length
                         stage_start = i
                 stages.append(
@@ -1441,9 +1367,7 @@ def run_rl_training(
                     current_num_features_list += random.sample(all_features, remainder)
 
             else:
-                current_num_features_list = [
-                    ((batch_i + 1) % rl_config.num_features) + 1
-                ]
+                current_num_features_list = [((batch_i + 1) % rl_config.num_features) + 1]
 
             start_generation_time = time.time()
 
@@ -1452,9 +1376,7 @@ def run_rl_training(
                 # Sample seq_len for this rollout if randomization is enabled
                 # Use synchronized RNG to ensure same seq_len across distributed workers
                 if rl_config.randomize_seq_len and seq_len > 3:
-                    seq_len_rng = random.Random(
-                        (rl_config.seed or 0) + batch_i * 10_000 + feat_idx
-                    )
+                    seq_len_rng = random.Random((rl_config.seed or 0) + batch_i * 10_000 + feat_idx)
                     current_seq_len = seq_len_rng.randint(3, seq_len)
                 else:
                     current_seq_len = seq_len
@@ -1480,9 +1402,7 @@ def run_rl_training(
 
                 # Compute a synchronized seed for sampler feature selection
                 # This ensures all distributed workers use the same dimensionality
-                sampler_seed = (
-                    (rl_config.seed or 0) + batch_i * 1_000 + current_num_features
-                )
+                sampler_seed = (rl_config.seed or 0) + batch_i * 1_000 + current_num_features
                 print(
                     f"{sampler_seed=}, {current_num_features=}, {current_bo_batch_size=}, {current_seq_len=}"
                 )
@@ -1546,17 +1466,13 @@ def run_rl_training(
                 start_draw_time = time.time()
 
                 draw_size = 100_000
-                draw_x = torch.rand(
-                    batch_size, draw_size, current_num_features, device=device
-                )
+                draw_x = torch.rand(batch_size, draw_size, current_num_features, device=device)
                 # Apply binary feature constraint to draw samples if applicable
                 if gen_res.binary_features_mask is not None:
-                    binary_mask_expanded = gen_res.binary_features_mask.unsqueeze(
-                        1
-                    ).expand(-1, draw_size, -1)
-                    draw_x = torch.where(
-                        binary_mask_expanded, (draw_x > 0.5).float(), draw_x
+                    binary_mask_expanded = gen_res.binary_features_mask.unsqueeze(1).expand(
+                        -1, draw_size, -1
                     )
+                    draw_x = torch.where(binary_mask_expanded, (draw_x > 0.5).float(), draw_x)
                 draw, _ = sampler(
                     draw_x,
                     independent_noise=True,
@@ -1575,9 +1491,7 @@ def run_rl_training(
                         sorted_ref = y_view.sort(1).values
                         ref_size = y_view.shape[1]
 
-                    quantiles = (
-                        torch.searchsorted(sorted_ref, y_view).float() / ref_size
-                    )
+                    quantiles = torch.searchsorted(sorted_ref, y_view).float() / ref_size
 
                     return quantiles.view(batch_size * sub_batch_size, -1)
 
@@ -1604,9 +1518,7 @@ def run_rl_training(
 
                 # Compute quantiles and standardized values for REWARDS
                 # (respects standardization_source setting)
-                reward_y_quantiles = compute_quantiles(
-                    gen_res.ys, use_draw=use_draw_for_reward
-                )
+                reward_y_quantiles = compute_quantiles(gen_res.ys, use_draw=use_draw_for_reward)
                 reward_target_y_quantiles = compute_quantiles(
                     gen_res.target_ys, use_draw=use_draw_for_reward
                 )
@@ -1620,12 +1532,8 @@ def run_rl_training(
                 # Compute quantiles and standardized values for PLOTS
                 # (always uses draw for quantiles, batch for standardized)
                 plot_y_quantiles = compute_quantiles(gen_res.ys, use_draw=True)
-                plot_target_y_quantiles = compute_quantiles(
-                    gen_res.target_ys, use_draw=True
-                )
-                plot_standardized_ys = compute_standardized_ys(
-                    gen_res.ys, use_draw=True
-                )
+                plot_target_y_quantiles = compute_quantiles(gen_res.target_ys, use_draw=True)
+                plot_standardized_ys = compute_standardized_ys(gen_res.ys, use_draw=True)
                 plot_standardized_target_ys = compute_standardized_ys(
                     gen_res.target_ys, use_draw=True
                 )
@@ -1642,9 +1550,7 @@ def run_rl_training(
                         reward_y_quantiles.view(batch_size, sub_batch_size, -1),
                         reward_target_y_quantiles.view(batch_size, sub_batch_size, -1),
                         reward_standardized_ys.view(batch_size, sub_batch_size, -1),
-                        reward_standardized_target_ys.view(
-                            batch_size, sub_batch_size, -1
-                        ),
+                        reward_standardized_target_ys.view(batch_size, sub_batch_size, -1),
                     )
                 )
 
@@ -1655,9 +1561,7 @@ def run_rl_training(
                     unnormalized = gen_res.unnormalized_avg_rewards.clone()
 
                     for batch_start in range(0, reward_seq_len, gen_res.bo_batch_size):
-                        batch_end = min(
-                            batch_start + gen_res.bo_batch_size, reward_seq_len
-                        )
+                        batch_end = min(batch_start + gen_res.bo_batch_size, reward_seq_len)
                         # Copy reward from last position in batch to all positions in batch
                         normalized[..., batch_start:batch_end] = normalized[
                             ..., batch_end - 1 : batch_end
@@ -1692,9 +1596,7 @@ def run_rl_training(
                     return sum(values) / len(values)
 
                 # Aggregated metrics (average across all gen_results)
-                avg_reward = avg(
-                    [gr.unnormalized_avg_rewards.mean().item() for gr in gen_results]
-                )
+                avg_reward = avg([gr.unnormalized_avg_rewards.mean().item() for gr in gen_results])
                 writer.add_scalar(
                     "avg_reward",
                     avg_reward,
@@ -1705,9 +1607,7 @@ def run_rl_training(
                     "reward_metrics/std_mean",
                     avg(
                         [
-                            gr.unnormalized_avg_rewards.std(1, keepdim=True)
-                            .mean()
-                            .item()
+                            gr.unnormalized_avg_rewards.std(1, keepdim=True).mean().item()
                             for gr in gen_results
                         ]
                     ),
@@ -1765,14 +1665,8 @@ def run_rl_training(
                     for gr in gen_results:
                         max_draw_per_function = gr.draw.max(1).values
                         used_ys = gr.target_ys[:, :step_cutoff]
-                        max_y_up_to_step = used_ys.max(1).values.view(
-                            batch_size, sub_batch_size
-                        )
-                        regret = (
-                            (max_draw_per_function[:, None] - max_y_up_to_step)
-                            .mean()
-                            .item()
-                        )
+                        max_y_up_to_step = used_ys.max(1).values.view(batch_size, sub_batch_size)
+                        regret = (max_draw_per_function[:, None] - max_y_up_to_step).mean().item()
                         regrets_at_step.append(regret)
                     writer.add_scalar(
                         f"retrieved_y/noiseless_regret_at_step_{step_cutoff}",
@@ -1793,21 +1687,15 @@ def run_rl_training(
                                     # At step 0, there's no previous incumbent
                                     continue
                                 # Incumbent is the argmax of target_ys among steps 0 to step_i-1
-                                incumbent_indices = gr.target_ys[:, :step_i].argmax(
-                                    dim=1
-                                )
+                                incumbent_indices = gr.target_ys[:, :step_i].argmax(dim=1)
                                 batch_indices = torch.arange(
                                     gr.predictions.shape[0],
                                     device=gr.predictions.device,
                                 )
-                                incumbent_x = gr.predictions[
-                                    batch_indices, incumbent_indices
-                                ]
+                                incumbent_x = gr.predictions[batch_indices, incumbent_indices]
                                 current_x = gr.predictions[:, step_i]
                                 # Euclidean distance
-                                distance = (
-                                    (current_x - incumbent_x).pow(2).sum(dim=-1).sqrt()
-                                )
+                                distance = (current_x - incumbent_x).pow(2).sum(dim=-1).sqrt()
                                 all_distances.append(distance.mean().item())
 
                         if all_distances:
@@ -1826,19 +1714,11 @@ def run_rl_training(
                 )
                 writer.add_scalar(
                     "retrieved_y/last_quantile",
-                    avg(
-                        [
-                            gr.target_y_quantiles[:, -1].mean().item()
-                            for gr in gen_results
-                        ]
-                    ),
+                    avg([gr.target_y_quantiles[:, -1].mean().item() for gr in gen_results]),
                     batch_i,
                 )
                 max_quantile = avg(
-                    [
-                        gr.target_y_quantiles.max(1).values.mean().item()
-                        for gr in gen_results
-                    ]
+                    [gr.target_y_quantiles.max(1).values.mean().item() for gr in gen_results]
                 )
                 writer.add_scalar(
                     "retrieved_y/max_quantile",
@@ -1907,9 +1787,7 @@ def run_rl_training(
                         # Concatenate all step tensors (handles different shapes)
                         entropies = torch.cat([e.flatten() for e in gr.step_entropies])
                         max_probs = torch.cat([m.flatten() for m in gr.step_max_probs])
-                        sampled_probs = torch.cat(
-                            [s.flatten() for s in gr.step_sampled_probs]
-                        )
+                        sampled_probs = torch.cat([s.flatten() for s in gr.step_sampled_probs])
                         # Mean across all samples
                         all_entropies.append(entropies.mean().item())
                         all_max_probs.append(max_probs.mean().item())
@@ -1950,9 +1828,7 @@ def run_rl_training(
             # Build list of (gen_res_idx, seq_idx) pairs to iterate over
             if rl_config.joint_rollout_training == "single":
                 # Only train on the first non-joint position (the split point)
-                training_steps = [
-                    (gr_idx, gr.joint_steps) for gr_idx, gr in enumerate(gen_results)
-                ]
+                training_steps = [(gr_idx, gr.joint_steps) for gr_idx, gr in enumerate(gen_results)]
             elif rl_config.joint_rollout_training == "remaining":
                 # Train on all positions from the split point onwards
                 training_steps = [
@@ -2005,9 +1881,7 @@ def run_rl_training(
                                 # Reuse the precomputed EI values from generation
                                 basemodel_ei = gen_res.basemodel_ei_values[i]
                                 # Create augmented options with EI
-                                opts = torch.cat(
-                                    [gen_res.options[i], basemodel_ei], dim=-1
-                                )
+                                opts = torch.cat([gen_res.options[i], basemodel_ei], dim=-1)
                                 # Add 0s to train_x for the EI column
                                 train_x = torch.cat(
                                     [
@@ -2060,22 +1934,18 @@ def run_rl_training(
                             pred_ratio = (log_p_new - log_p_old).exp()
 
                         else:
-                            logits_new = model(
-                                x=full_train_x, y=None, test_x=full_test_x
-                            )[:, :, 0].squeeze(1)
+                            logits_new = model(x=full_train_x, y=None, test_x=full_test_x)[
+                                :, :, 0
+                            ].squeeze(1)
                             with torch.no_grad():
                                 logits_old = (
-                                    old_model(
-                                        x=full_train_x, y=None, test_x=full_test_x
-                                    )[:, :, 0]
+                                    old_model(x=full_train_x, y=None, test_x=full_test_x)[:, :, 0]
                                     .squeeze(1)
                                     .detach()
                                 )
                             # criterion computes the neg log likelihood, that is why the ratio is inverted
                             # Note: old_model is always unwrapped, but model might be DDP-wrapped
-                            nll_old = old_model.criterion(
-                                logits_old, gen_res.predictions[:, i]
-                            )
+                            nll_old = old_model.criterion(logits_old, gen_res.predictions[:, i])
                             nll_new = unwrap_model(model).criterion(
                                 logits_new, gen_res.predictions[:, i]
                             )
@@ -2090,25 +1960,18 @@ def run_rl_training(
                         rewards_at_step = normalized_avg_rewards[:, i].view(
                             batch_size, sub_batch_size
                         )
-                        avg_magnitude_per_func = rewards_at_step.abs().mean(
-                            dim=1
-                        )  # [batch_size]
+                        avg_magnitude_per_func = rewards_at_step.abs().mean(dim=1)  # [batch_size]
 
                         # Zero out rewards for functions with low average magnitude
                         # and scale up remaining rewards to maintain gradient magnitude
                         if rl_config.filter_rewards_up_to_magnitude is not None:
                             low_magnitude_mask = (
-                                avg_magnitude_per_func
-                                <= rl_config.filter_rewards_up_to_magnitude
+                                avg_magnitude_per_func <= rl_config.filter_rewards_up_to_magnitude
                             )  # [batch_size]
-                            effective_batch_size = (
-                                batch_size - low_magnitude_mask.sum().item()
-                            )
+                            effective_batch_size = batch_size - low_magnitude_mask.sum().item()
 
                             # Track zero variance filtered samples
-                            zero_variance_filtered_samples += (
-                                low_magnitude_mask.sum().item()
-                            )
+                            zero_variance_filtered_samples += low_magnitude_mask.sum().item()
                             total_filtering_samples += batch_size
 
                             # Expand mask to super_batch_size and zero out rewards
@@ -2129,27 +1992,18 @@ def run_rl_training(
                             rewards_for_loss = normalized_avg_rewards[:, i]
 
                         # Compute eps bounds (asymmetric if eps_low is specified)
-                        eps_lower = (
-                            rl_config.eps_low if rl_config.eps_low is not None else eps
-                        )
+                        eps_lower = rl_config.eps_low if rl_config.eps_low is not None else eps
                         eps_upper = eps
 
                         # Track eps clamping statistics for this repetition
                         with torch.no_grad():
                             n_samples = pred_ratio.numel()
                             rep_total_samples += n_samples
-                            rep_ratio_above_eps += (
-                                (pred_ratio > 1 + eps_upper).sum().item()
-                            )
-                            rep_ratio_below_eps += (
-                                (pred_ratio < 1 - eps_lower).sum().item()
-                            )
+                            rep_ratio_above_eps += (pred_ratio > 1 + eps_upper).sum().item()
+                            rep_ratio_below_eps += (pred_ratio < 1 - eps_lower).sum().item()
                             # Clamp is active when pred_ratio is outside bounds
                             rep_clamp_active += (
-                                (
-                                    (pred_ratio > 1 + eps_upper)
-                                    | (pred_ratio < 1 - eps_lower)
-                                )
+                                ((pred_ratio > 1 + eps_upper) | (pred_ratio < 1 - eps_lower))
                                 .sum()
                                 .item()
                             )
@@ -2158,17 +2012,14 @@ def run_rl_training(
                             # GRPO: min(ratio * advantage, clamp(ratio) * advantage)
                             goal = pred_ratio * rewards_for_loss
                             clamped_goal = (
-                                pred_ratio.clamp(1 - eps_lower, 1 + eps_upper)
-                                * rewards_for_loss
+                                pred_ratio.clamp(1 - eps_lower, 1 + eps_upper) * rewards_for_loss
                             )
                             # GRPO formulation is a maximization and we minimize
                             loss = -torch.min(goal, clamped_goal)
                         else:
                             # CISPO: stop_grad(clamp(ratio)) * advantage * log_p_new
                             assert rl_config.algorithm == "cispo"
-                            clamped_weight = pred_ratio.detach().clamp(
-                                1 - eps_lower, 1 + eps_upper
-                            )
+                            clamped_weight = pred_ratio.detach().clamp(1 - eps_lower, 1 + eps_upper)
                             # Maximize weighted log probability, so negate for minimization
                             loss = -clamped_weight * rewards_for_loss * log_p_new
 
@@ -2184,14 +2035,9 @@ def run_rl_training(
                         nan_encountered = True
                         break
 
-                    if (
-                        rl_config.grad_clip_norm is not None
-                        and rl_config.grad_clip_norm > 0
-                    ):
+                    if rl_config.grad_clip_norm is not None and rl_config.grad_clip_norm > 0:
                         scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), rl_config.grad_clip_norm
-                        )
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), rl_config.grad_clip_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
@@ -2239,27 +2085,17 @@ def run_rl_training(
             if writer is not None and not math.isnan(mean_loss):
                 print(f"rank {rank} is pushing times for batch {batch_i}")
                 writer.add_scalar("loss/mean_batch_loss", mean_loss, batch_i)
-                writer.add_scalar(
-                    "optimizer/lr", optimizer.param_groups[0]["lr"], batch_i
-                )
+                writer.add_scalar("optimizer/lr", optimizer.param_groups[0]["lr"], batch_i)
                 writer.add_scalar("time/generation_time", generation_time, batch_i)
                 writer.add_scalar("time/draw_time", draw_time, batch_i)
-                writer.add_scalar(
-                    "time/training_loop_time", training_loop_time, batch_i
-                )
+                writer.add_scalar("time/training_loop_time", training_loop_time, batch_i)
 
                 # Log eps clamping statistics - per repetition
                 for rep_idx, stats in enumerate(per_rep_stats):
                     if stats["total_samples"] > 0:
-                        ratio_above_eps_frac = (
-                            stats["ratio_above_eps"] / stats["total_samples"]
-                        )
-                        ratio_below_eps_frac = (
-                            stats["ratio_below_eps"] / stats["total_samples"]
-                        )
-                        clamp_active_frac = (
-                            stats["clamp_active"] / stats["total_samples"]
-                        )
+                        ratio_above_eps_frac = stats["ratio_above_eps"] / stats["total_samples"]
+                        ratio_below_eps_frac = stats["ratio_below_eps"] / stats["total_samples"]
+                        clamp_active_frac = stats["clamp_active"] / stats["total_samples"]
 
                         writer.add_scalar(
                             f"ppo_clipping/rep_{rep_idx}/ratio_above_eps_frac",
@@ -2384,9 +2220,7 @@ def _save_checkpoint(
         scheduler: LR scheduler state (optional, for resumable checkpoints)
     """
     checkpoint = {
-        "model_state_dict": {
-            k: v.detach().cpu() for k, v in model.state_dict().items()
-        },
+        "model_state_dict": {k: v.detach().cpu() for k, v in model.state_dict().items()},
         "base_train_config": base_train_config.to_dict(),
         "config": rl_config.to_dict(),
     }

@@ -11,9 +11,7 @@ from pfns.utils import to_tensor
 
 class DiscretePrior(torch.nn.Module, metaclass=ABCMeta):
     def __init__(self, weights: torch.Tensor):
-        """
-        :param weights: (num_latent_options, )
-        """
+        """:param weights: (num_latent_options, )"""
         super().__init__()
         self.register_buffer("weights", weights)
 
@@ -36,8 +34,7 @@ class DiscretePrior(torch.nn.Module, metaclass=ABCMeta):
         return self.weights.device
 
     def to_latent_vector(self, latent_value: torch.Tensor):
-        """
-        Transforms a latent values that can either be of shape (,) or (#latent options, ) to (#latent options, )
+        """Transforms a latent values that can either be of shape (,) or (#latent options, ) to (#latent options, )
         :param latent_value: tensor[latent options] or tensor[]
         :return:
         """
@@ -49,29 +46,24 @@ class DiscretePrior(torch.nn.Module, metaclass=ABCMeta):
 
     @abstractmethod
     def sample_xy(self, num_samples=1):
-        """
-        Sample from p(x, y) num_samples times, from the latent options
+        """Sample from p(x, y) num_samples times, from the latent options
         Return x: tensor, y: tensor
         """
         pass
 
     @abstractmethod
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
-        """
+        """This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched"""
         pass
 
     def mean_y(self, x: torch.Tensor):
-        """
-        This computes E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
+        """This computes E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
         This function is only used for regression.
         """
         raise NotImplementedError()
 
     def probs_y(self, x: torch.Tensor):
-        """
-        This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]
+        """This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]
         This function is only used for classification.
         """
         raise NotImplementedError
@@ -102,9 +94,7 @@ class Step(DiscretePrior):
         self.noise_type = noise_type
 
         if noise_type == "normal":
-            self.noise_dist = torch.distributions.Normal(
-                torch.tensor(0.0), self.noise_std
-            )
+            self.noise_dist = torch.distributions.Normal(torch.tensor(0.0), self.noise_std)
         elif noise_type == "laplace":
             self.noise_dist = torch.distributions.Laplace(
                 torch.tensor(0.0), self.noise_std / math.sqrt(2)
@@ -113,8 +103,7 @@ class Step(DiscretePrior):
             raise NotImplementedError
 
     def mean_y(self, x: torch.Tensor, latent_indices: torch.Tensor | None = None):
-        """
-        E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
+        """E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
         :param x: tensor[batch size, 1]
         :param latent_indices: tensor[batch size] or None
         :return: tensor[batch size, # latent options]
@@ -135,9 +124,7 @@ class Step(DiscretePrior):
         return x, y
 
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
-        """
+        """This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched"""
         if len(y.shape) == 1:
             y = y[:, None]
 
@@ -150,9 +137,7 @@ class Step(DiscretePrior):
 class Counting(DiscretePrior):
     def __init__(self, weights: torch.Tensor):
         super().__init__(weights)
-        self.register_buffer(
-            "class_1_prob", torch.linspace(0, 1, len(weights) + 2)[1:][:-1]
-        )
+        self.register_buffer("class_1_prob", torch.linspace(0, 1, len(weights) + 2)[1:][:-1])
 
     def sample_xy(self, num_samples=1):
         class_1_prob = self.class_1_prob[self.sample_latent_index()].expand(num_samples)
@@ -160,9 +145,7 @@ class Counting(DiscretePrior):
         return torch.zeros(num_samples, 1, device=self.device), y
 
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
-        """
+        """This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched"""
         assert (y.bool() == (y == 1)).all()
         log_likelihoods = torch.zeros(y.shape[0], len(self), device=self.device)
         for i, class_prob in enumerate(self.class_1_prob):
@@ -174,9 +157,7 @@ class Counting(DiscretePrior):
         return log_likelihoods
 
     def probs_y(self, x: torch.Tensor):
-        """
-        This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]
-        """
+        """This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]"""
         classes_probs = torch.stack([1 - self.class_1_prob, self.class_1_prob], dim=1)
         return classes_probs[None].expand(len(x), -1, -1)
 
@@ -203,8 +184,7 @@ class Sinus(DiscretePrior):
         self.noise_dist = torch.distributions.Normal(torch.tensor(0.0), self.noise_std)
 
     def mean_y(self, x: torch.Tensor, latent_indices: torch.Tensor | None = None):
-        """
-        E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
+        """E[y|x,latent] -> tensor[batch size, # latent options], where x is batched.
         :param x: (batch size, 1)
         :param latent_indices: list of ints
         :return: (batch size, # latent options)
@@ -217,9 +197,7 @@ class Sinus(DiscretePrior):
             + self.to_latent_vector(self.amplitudes)[latent_indices][None]
             * torch.sin(
                 self.to_latent_vector(self.frequencies)[latent_indices][None] * x
-                + self.to_latent_vector(self.x_offsets)[latent_indices][None]
-                * 2
-                * math.pi
+                + self.to_latent_vector(self.x_offsets)[latent_indices][None] * 2 * math.pi
             )
             + self.to_latent_vector(self.slopes)[latent_indices][None] * x
         )
@@ -232,9 +210,7 @@ class Sinus(DiscretePrior):
         return x, y
 
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
-        """
+        """This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched"""
         if len(y.shape) == 1:
             y = y[:, None]
 
@@ -250,14 +226,8 @@ class Normal(torch.distributions.Normal):
             self._validate_sample(value)
         # compute the variance
         var = self.scale**2
-        log_scale = (
-            math.log(self.scale) if isinstance(self.scale, Real) else self.scale.log()
-        )
-        return (
-            -((value - self.loc) ** 2) / (2 * var)
-            - log_scale
-            - math.log(math.sqrt(2 * math.pi))
-        )
+        log_scale = math.log(self.scale) if isinstance(self.scale, Real) else self.scale.log()
+        return -((value - self.loc) ** 2) / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
 
 
 class TwoLevelUniform(torch.distributions.Distribution):
@@ -292,8 +262,7 @@ class Gaussian2DClassification(DiscretePrior):
         stds_per_class: torch.Tensor,
         dist_type="normal",
     ):
-        """
-        This is a prior for a 2D Gaussian binary classification problem.
+        """This is a prior for a 2D Gaussian binary classification problem.
         Each problem consists of two gaussian distributions, one for each class.
         Classes are balanced, i.e. drawn with equal probability.
         :param weights: tensor[#latent options]
@@ -332,8 +301,7 @@ class Gaussian2DClassification(DiscretePrior):
             raise NotImplementedError
 
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
+        """This computes log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
         :param x: tensor[batch size, 2]
         :param y:
         :return:
@@ -366,18 +334,14 @@ class Stroke(DiscretePrior):
         noise_std=0.1,
         noise_type="normal",
     ):
-        """
-        :param weights: (num_latent_options, )
-        """
+        """:param weights: (num_latent_options, )"""
         self.resolution = resolution
         self.rotations = [(0, 1), (1, 0), (1, 1), (1, -1)]
         self.lengths = list(range(2, self.resolution // 2 + 1))
 
         self.stroke_types = [(l, r) for l in self.lengths for r in self.rotations]
         self.latents = [
-            (i, j)
-            for i in range(len(self.stroke_types))
-            for j in range(0, len(self.stroke_types))
+            (i, j) for i in range(len(self.stroke_types)) for j in range(0, len(self.stroke_types))
         ]
         self.no_cut_off = no_cut_off
         super().__init__(torch.ones(len(self.latents)))
@@ -408,10 +372,7 @@ class Stroke(DiscretePrior):
 
                     adapted_len = sum(
                         [
-                            i >= 0
-                            and i < self.resolution
-                            and j >= 0
-                            and j < self.resolution
+                            i >= 0 and i < self.resolution and j >= 0 and j < self.resolution
                             for i, j in zip(i_s, j_s)
                         ]
                     )
@@ -419,9 +380,7 @@ class Stroke(DiscretePrior):
                     if self.no_cut_off and adapted_len < length:
                         continue
 
-                    images_of_this_stroke.append(
-                        torch.zeros(self.resolution, self.resolution)
-                    )
+                    images_of_this_stroke.append(torch.zeros(self.resolution, self.resolution))
                     images_of_this_stroke[-1][i_s[:adapted_len], j_s[:adapted_len]] = 1
             images_per_stroke.append(torch.stack(images_of_this_stroke))
         self.images_per_stroke = images_per_stroke
@@ -432,8 +391,7 @@ class Stroke(DiscretePrior):
         sample_among_first_n_variants=None,
         sample_half_half=False,
     ):
-        """
-        Sample from p(x, y) num_samples times, from the latent options
+        """Sample from p(x, y) num_samples times, from the latent options
         Return x: tensor, y: tensor
         """
         latent_idx = self.sample_latent_index()[0]
@@ -448,9 +406,9 @@ class Stroke(DiscretePrior):
         for bi, y in enumerate(ys):
             images_of_this_stroke = self.images_per_stroke[stroke_inds[y]]
             if sample_among_first_n_variants is not None:
-                variant_index = torch.randint(sample_among_first_n_variants, tuple())
+                variant_index = torch.randint(sample_among_first_n_variants, ())
             else:
-                variant_index = torch.randint(len(images_of_this_stroke), tuple())
+                variant_index = torch.randint(len(images_of_this_stroke), ())
 
             x[bi] = images_of_this_stroke[variant_index]
 
@@ -466,15 +424,11 @@ class Stroke(DiscretePrior):
         x = x.to(self.device)
         if self.noise_type == "normal":
             log_likelihoods = [
-                self.noise_dist.log_prob(x[:, None] - images_for_stroke[None, :])
-                .sum(-1)
-                .sum(-1)
+                self.noise_dist.log_prob(x[:, None] - images_for_stroke[None, :]).sum(-1).sum(-1)
                 for images_for_stroke in self.images_per_stroke
             ]
         elif self.noise_type == "uniform":
-            log_likelihoods_one = (
-                (x >= (1 - self.noise_std)).float() / self.noise_std
-            ).log()
+            log_likelihoods_one = ((x >= (1 - self.noise_std)).float() / self.noise_std).log()
             log_likelihoods_zero = torch.zeros_like(log_likelihoods_one)
             assert all(
                 ((images_for_stroke == 0.0) | (images_for_stroke == 1.0)).all()
@@ -493,20 +447,13 @@ class Stroke(DiscretePrior):
         log_likelihoods = [
             torch.logsumexp(log_likelihood, dim=-1)
             - torch.log(torch.tensor(len(images_for_stroke)))
-            for log_likelihood, images_for_stroke in zip(
-                log_likelihoods, self.images_per_stroke
-            )
+            for log_likelihood, images_for_stroke in zip(log_likelihoods, self.images_per_stroke)
         ]
-        log_likelihoods = torch.stack(
-            log_likelihoods, dim=1
-        )  # (batch size, #stroke types)
+        log_likelihoods = torch.stack(log_likelihoods, dim=1)  # (batch size, #stroke types)
         return log_likelihoods
 
     def xy_logprob(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        This computes (across all latens) log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched
-        """
-
+        """This computes (across all latens) log p(x, y|latent) -> torch.Tensor[batch size, #latent options], where x and y are batched"""
         log_likelihoods = self.calculate_log_likelihoods_for_images(
             x
         )  # (batch size, #stroke types)
@@ -528,8 +475,7 @@ class Stroke(DiscretePrior):
         return log_probs
 
     def probs_y(self, x: torch.Tensor):
-        """
-        This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]
+        """This computes p(y|x,latent) -> tensor[batch size, #latent options, #classes]
         This function is only used for classification.
         """
         log_likelihoods = self.calculate_log_likelihoods_for_images(x)
@@ -542,13 +488,10 @@ class Stroke(DiscretePrior):
         return torch.softmax(log_probs, dim=2)
 
     def averaged_probs_y(self, x: torch.Tensor, weights: torch.Tensor):
-        """
-        This computes p(y|x,latent) @ latent weights -> tensor[batch size, #classes]
+        """This computes p(y|x,latent) @ latent weights -> tensor[batch size, #classes]
         This function is only used for classification.
         """
-        indices = torch.tensor(
-            self.latents, device=self.device
-        )  # (num_latent_options, 2)
+        indices = torch.tensor(self.latents, device=self.device)  # (num_latent_options, 2)
         log_likelihoods = self.calculate_log_likelihoods_for_images(
             x
         )  # (batch_size, stroke_types (sqrt(num_latent_options))
@@ -562,14 +505,10 @@ class Stroke(DiscretePrior):
             batch_end = min(i + batch_size, num_latents)
 
             # Compute probabilities for this batch of latents
-            probs_for_batch = torch.softmax(
-                log_likelihoods[:, indices[i:batch_end]], dim=2
-            )
+            probs_for_batch = torch.softmax(log_likelihoods[:, indices[i:batch_end]], dim=2)
 
             # Multiply by weights and sum for this batch
-            out_probs += torch.einsum(
-                "blc,l->bc", probs_for_batch, weights[i:batch_end]
-            )
+            out_probs += torch.einsum("blc,l->bc", probs_for_batch, weights[i:batch_end])
 
         # Normalize the output probabilities
         out_probs /= weights.sum()
@@ -588,10 +527,7 @@ class StrokeNotCompletelyTranslationInvariant(Stroke):
         max_translations=(3, 3),
         lengths=None,
     ):
-        """
-        :param weights: (num_latent_options, )
-        """
-
+        """:param weights: (num_latent_options, )"""
         self.noise_type = noise_type
         self.noise_std = noise_std
         if noise_type == "normal":
@@ -625,9 +561,7 @@ class StrokeNotCompletelyTranslationInvariant(Stroke):
         self.stroke_types = []
 
         for length, (right, up), i_offset, j_offset in unfiltered_stroke_types:
-            i_indexes, j_indexes = compute_index_offsets(
-                length, right, up, i_offset, j_offset
-            )
+            i_indexes, j_indexes = compute_index_offsets(length, right, up, i_offset, j_offset)
 
             if (
                 (max(i_indexes + max_translations[0]) >= self.resolution)
@@ -639,9 +573,7 @@ class StrokeNotCompletelyTranslationInvariant(Stroke):
             self.stroke_types.append((length, (right, up), i_offset, j_offset))
 
         self.latents = [
-            (i, j)
-            for i in range(len(self.stroke_types))
-            for j in range(0, len(self.stroke_types))
+            (i, j) for i in range(len(self.stroke_types)) for j in range(0, len(self.stroke_types))
         ]
 
         DiscretePrior.__init__(self, torch.ones(len(self.latents)))
@@ -649,20 +581,14 @@ class StrokeNotCompletelyTranslationInvariant(Stroke):
         images_per_stroke = []
 
         for length, (right, up), i_offset, j_offset in self.stroke_types:
-            i_indexes, j_indexes = compute_index_offsets(
-                length, right, up, i_offset, j_offset
-            )
+            i_indexes, j_indexes = compute_index_offsets(length, right, up, i_offset, j_offset)
             images_of_this_stroke = []
             for i_translation in range(-max_translations[0], max_translations[0] + 1):
-                for j_translation in range(
-                    -max_translations[1], max_translations[1] + 1
-                ):
+                for j_translation in range(-max_translations[1], max_translations[1] + 1):
                     i_s = i_indexes + i_translation
                     j_s = j_indexes + j_translation
 
-                    images_of_this_stroke.append(
-                        torch.zeros(self.resolution, self.resolution)
-                    )
+                    images_of_this_stroke.append(torch.zeros(self.resolution, self.resolution))
                     images_of_this_stroke[-1][i_s, j_s] = 1
             images_per_stroke.append(torch.stack(images_of_this_stroke))
         self.register_buffer("images_per_stroke", torch.stack(images_per_stroke))
@@ -719,12 +645,8 @@ def get_batch_random_pixels(
         y = torch.randint(2, (seq_len,))
         x = torch.zeros(seq_len, res, res)
         # Generate random translations for all sequence elements at once
-        translations_i = torch.randint(
-            -max_translation, max_translation + 1, (seq_len,)
-        )
-        translations_j = torch.randint(
-            -max_translation, max_translation + 1, (seq_len,)
-        )
+        translations_i = torch.randint(-max_translation, max_translation + 1, (seq_len,))
+        translations_j = torch.randint(-max_translation, max_translation + 1, (seq_len,))
 
         # Create a tensor of indices for batch processing
         indices = torch.arange(seq_len)
@@ -751,9 +673,7 @@ def get_batch_random_pixels(
         batch.append((x, y))
 
     return Batch(
-        x=torch.stack([x for x, _ in batch], 1)
-        .to(device)
-        .view(seq_len, batch_size, num_features),
+        x=torch.stack([x for x, _ in batch], 1).to(device).view(seq_len, batch_size, num_features),
         y=torch.stack([y for _, y in batch], 1).clone().to(device).float(),
         target_y=torch.stack([y for _, y in batch], 1).clone().to(device).float(),
     )
@@ -765,9 +685,7 @@ class DiscreteBayes(torch.nn.Module):
         priors: list[DiscretePrior],
         meta_weights: torch.Tensor | None = None,
     ):
-        """
-
-        :param priors: a list of types of latent options
+        """:param priors: a list of types of latent options
         :param meta_weights: a list of weights for each type of latent options
         """
         super().__init__()
@@ -777,9 +695,7 @@ class DiscreteBayes(torch.nn.Module):
         self.register_buffer("meta_weights", meta_weights)
 
     def sample_latent_options_type(self):
-        """
-        Sample from p(latent)
-        """
+        """Sample from p(latent)"""
         return self.priors[torch.multinomial(self.meta_weights, 1).item()]
 
     @torch.no_grad()
@@ -814,9 +730,7 @@ class DiscreteBayes(torch.nn.Module):
 
     @torch.no_grad()
     def compute_log_likelihood(self, x: torch.Tensor, y: torch.Tensor):
-        """
-        Computes log p(D|latent) for all latents or p(D,x|latent), if x is one longer than y.
-        """
+        """Computes log p(D|latent) for all latents or p(D,x|latent), if x is one longer than y."""
         # TODO: actually condition on the query x too
         all_log_likelihoods = []
 
@@ -829,9 +743,7 @@ class DiscreteBayes(torch.nn.Module):
     def compute_log_posterior(
         self, x: torch.Tensor, y: torch.Tensor
     ):  # only works on a single dataset atm
-        """
-        Computes p(latent|D) for all latents, as well as the unnormalized posterior (p(D,latent)) and the normalizing term (p(D)).
-        """
+        """Computes p(latent|D) for all latents, as well as the unnormalized posterior (p(D,latent)) and the normalizing term (p(D))."""
         all_log_likelihoods = self.compute_log_likelihood(x, y)  # list of vectors
 
         # Define prior probabilities p(prior) and p(latent|prior)
@@ -853,12 +765,8 @@ class DiscreteBayes(torch.nn.Module):
         ]
 
         # Compute posterior
-        normalizing_term = torch.logsumexp(
-            torch.cat(unnormalized_log_posterior), dim=0
-        )  # scalar
-        log_posterior = [
-            log_prob - normalizing_term for log_prob in unnormalized_log_posterior
-        ]
+        normalizing_term = torch.logsumexp(torch.cat(unnormalized_log_posterior), dim=0)  # scalar
+        log_posterior = [log_prob - normalizing_term for log_prob in unnormalized_log_posterior]
 
         return log_posterior, unnormalized_log_posterior, normalizing_term
 
@@ -870,17 +778,13 @@ class DiscreteBayes(torch.nn.Module):
         x_query: torch.Tensor,
         verbose_output=False,
     ):
-        """
-        Computes the posterior predictive mean for a for a regression prior for a single dataset.
-        """
-        log_posterior, unnormalized_log_posterior, normalizing_term = (
-            self.compute_log_posterior(x, y)
+        """Computes the posterior predictive mean for a for a regression prior for a single dataset."""
+        log_posterior, unnormalized_log_posterior, normalizing_term = self.compute_log_posterior(
+            x, y
         )  # list of vectors
 
         total_p = sum(lp.double().exp().sum() for lp in log_posterior).item()
-        assert (
-            abs(total_p - 1) < 1e-1
-        ), f"Posterior probabilities do not sum to 1: {total_p}"
+        assert abs(total_p - 1) < 1e-1, f"Posterior probabilities do not sum to 1: {total_p}"
 
         posterior_predictive_mean = 0.0
 

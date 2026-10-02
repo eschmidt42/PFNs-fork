@@ -8,15 +8,15 @@ from typing import Any, Literal
 
 import einops
 import torch
-
-from pfns.model.encoders import (
-    get_linear_x_encoder,
-    get_linear_y_encoder,
-    SequentialEncoder,
-)
-from pfns.model.layer import PerFeatureLayer
 from torch import nn
 from torch.utils.checkpoint import checkpoint
+
+from pfns.model.encoders import (
+    SequentialEncoder,
+    get_linear_x_encoder,
+    get_linear_y_encoder,
+)
+from pfns.model.layer import PerFeatureLayer
 
 DEFAULT_EMSIZE = 128
 
@@ -60,9 +60,7 @@ class TableTransformer(nn.Module):
             | None
         ) = None,
         zero_init: bool = True,
-        precomputed_kv: (
-            list[torch.Tensor | tuple[torch.Tensor, torch.Tensor]] | None
-        ) = None,
+        precomputed_kv: (list[torch.Tensor | tuple[torch.Tensor, torch.Tensor]] | None) = None,
         cache_trainset_representation: bool = False,
         seed: int | None = None,
         style_encoder: nn.Module | None = None,
@@ -175,9 +173,7 @@ class TableTransformer(nn.Module):
                 dim_feedforward=nhid,
                 activation=activation,
                 zero_init=zero_init,
-                precomputed_kv=(
-                    precomputed_kv.pop(0) if precomputed_kv is not None else None
-                ),
+                precomputed_kv=(precomputed_kv.pop(0) if precomputed_kv is not None else None),
                 attention_between_features=attention_between_features,
                 positions_num_measures=positions_num_measures,
                 **layer_kwargs,
@@ -220,16 +216,16 @@ class TableTransformer(nn.Module):
 
         self.style_encoder = style_encoder
         if y_style_encoder is not None:
-            assert attention_between_features, "Attention between features must be True when using a y_style_encoder, otherwise only use a style_encoder."
+            assert attention_between_features, (
+                "Attention between features must be True when using a y_style_encoder, otherwise only use a style_encoder."
+            )
         self.y_style_encoder = y_style_encoder
 
         if x_only_mode:
-            assert (
-                attention_between_features
-            ), "attention_between_features must be True when x_only_mode is True"
-            assert (
-                features_per_group == 1
-            ), "features_per_group must be 1 when x_only_mode is True"
+            assert attention_between_features, (
+                "attention_between_features must be True when x_only_mode is True"
+            )
+            assert features_per_group == 1, "features_per_group must be 1 when x_only_mode is True"
 
         self.x_only_mode = x_only_mode
 
@@ -243,8 +239,7 @@ class TableTransformer(nn.Module):
         only_return_standard_out: bool = True,
         **kwargs,
     ) -> dict[str, torch.Tensor]:  # noqa: D417
-        """
-        x can either contain both the train and test part, or the test part can be passed as test_x.
+        """X can either contain both the train and test part, or the test part can be passed as test_x.
 
         Args:
             x: The input data for the training set, or both the train and test part if test_x is None.
@@ -295,27 +290,27 @@ class TableTransformer(nn.Module):
 
         # Handle cache_trainset_representation and combining x, test_x
         if self.cache_trainset_representation and y is None:
-            assert (
-                not self.x_only_mode
-            ), "x_only_mode is not supported when cache_trainset_representation is True"
-            assert (
-                (test_x is None) != (x is None)
-            ), "Provide the test inputs only via test_x or x, not both, when cache_trainset_representation is True"
+            assert not self.x_only_mode, (
+                "x_only_mode is not supported when cache_trainset_representation is True"
+            )
+            assert (test_x is None) != (x is None), (
+                "Provide the test inputs only via test_x or x, not both, when cache_trainset_representation is True"
+            )
             if test_x is not None:
                 x_bf = test_x_bf
         else:
-            assert (
-                x_bf is not None
-            ), "x must be provided when not predicting from cached trainset representations"
-            assert (
-                y is not None or self.x_only_mode
-            ), "y must be provided when not predicting from cached trainset representations"
+            assert x_bf is not None, (
+                "x must be provided when not predicting from cached trainset representations"
+            )
+            assert y is not None or self.x_only_mode, (
+                "y must be provided when not predicting from cached trainset representations"
+            )
 
             if test_x_bf is not None:
                 # x_bf and test_x_bf are batch-first. Concatenate along sequence dim (1).
-                assert (
-                    x_bf.shape[1] == single_eval_pos
-                ), f"Batch-first x sequence length {x_bf.shape[1]} must match single_eval_pos {single_eval_pos} for concatenation"
+                assert x_bf.shape[1] == single_eval_pos, (
+                    f"Batch-first x sequence length {x_bf.shape[1]} must match single_eval_pos {single_eval_pos} for concatenation"
+                )
                 x_bf = torch.cat((x_bf, test_x_bf), dim=1)
 
         # Call _forward with batch-first tensors
@@ -342,8 +337,7 @@ class TableTransformer(nn.Module):
         x: torch.Tensor | dict,  # Expected to be batch-first
         y: torch.Tensor | dict | None,  # Expected to be batch-first
         *,
-        single_eval_pos: int
-        | None = None,  # Length of the training part of the sequence
+        single_eval_pos: int | None = None,  # Length of the training part of the sequence
         style: torch.Tensor | None = None,  # Assumed batch-first
         y_style: torch.Tensor | None = None,  # Assumed batch-first
         categorical_inds: list[int] | None = None,
@@ -353,23 +347,19 @@ class TableTransformer(nn.Module):
         # Assertions and initial setup
         if self.cache_trainset_representation:
             if not single_eval_pos:  # none or 0
-                assert (
-                    y is None
-                ), "_forward expects y=None if single_eval_pos is 0/None and caching"
+                assert y is None, "_forward expects y=None if single_eval_pos is 0/None and caching"
         else:
             if not self.x_only_mode:
-                assert (
-                    y is not None
-                ), "_forward expects y if not caching for pure inference or during training"
+                assert y is not None, (
+                    "_forward expects y if not caching for pure inference or during training"
+                )
 
-            assert (
-                single_eval_pos is not None
-            ), "_forward expects single_eval_pos if not caching for pure inference or during training"
+            assert single_eval_pos is not None, (
+                "_forward expects single_eval_pos if not caching for pure inference or during training"
+            )
 
         if self.use_rope or (self.positions_num_measures > 0):
-            assert (
-                not self.x_only_mode
-            ), "Rope/Positional Embs only supported for x_only_mode=False"
+            assert not self.x_only_mode, "Rope/Positional Embs only supported for x_only_mode=False"
 
         # single_eval_pos is the length of the training sequence part.
         # If None (e.g. pure inference from cache), treat as 0.
@@ -456,9 +446,7 @@ class TableTransformer(nn.Module):
                 )
             else:  # style.ndim == 2, (batch_size, style_dim)
                 assert style.ndim == 2
-                batched_style = einops.repeat(
-                    style, "b s_dim -> (b f) s_dim", f=num_groups_main
-                )
+                batched_style = einops.repeat(style, "b s_dim -> (b f) s_dim", f=num_groups_main)
         else:
             batched_style = None
 
@@ -496,9 +484,10 @@ class TableTransformer(nn.Module):
                     assert (
                         y[k].shape[1]
                         == current_context_len  # y should only contain train part if shorter
-                        or y[k].shape[1]
-                        == _seq_len  # Should not happen if already shorter
-                    ), f"y[{k}] seq len {y[k].shape[1]} vs train_seq_len {current_context_len} vs x_seq_len {_seq_len}"
+                        or y[k].shape[1] == _seq_len  # Should not happen if already shorter
+                    ), (
+                        f"y[{k}] seq len {y[k].shape[1]} vs train_seq_len {current_context_len} vs x_seq_len {_seq_len}"
+                    )
 
                     # Only pad if y is for training part or not main y (auxiliary targets might be full length)
                     if k != "main" or y[k].shape[1] == current_context_len:
@@ -535,15 +524,13 @@ class TableTransformer(nn.Module):
             ).transpose(0, 1)
 
             if self.use_rope or self.positions_num_measures > 0:
-                assert (
-                    self.attention_between_features
-                ), "Rope only supported for attention_between_features=True"
-                assert (
-                    self.features_per_group == 1
-                ), "Rope only supported for features_per_group=1"
-                assert not (
-                    self.use_rope and (self.positions_num_measures > 0)
-                ), "Rope and positions_num_measures > 0 not supported at the same time"
+                assert self.attention_between_features, (
+                    "Rope only supported for attention_between_features=True"
+                )
+                assert self.features_per_group == 1, "Rope only supported for features_per_group=1"
+                assert not (self.use_rope and (self.positions_num_measures > 0)), (
+                    "Rope and positions_num_measures > 0 not supported at the same time"
+                )
                 if self.use_rope:
                     head_dim = self.ninp // self.nhead
                     rope_vals_x = get_rope_vals(
@@ -556,9 +543,9 @@ class TableTransformer(nn.Module):
                     rope_vals_y = rope_vals_y.view(_batch_size, _seq_len, 1, head_dim)
                     rope_vals = torch.cat((rope_vals_x, rope_vals_y), dim=2)
                 else:
-                    assert (
-                        "main" in y and len(y) == 1
-                    ), "Positions in attention only supported for simple y"
+                    assert "main" in y and len(y) == 1, (
+                        "Positions in attention only supported for simple y"
+                    )
                     # [batch, seqlen_q, num_feature_blocks, 1]
                     positions = x["main"]  # [_batch_size, _seq_len, num_groups_main, 1]
                     # add positions for y [_batch_size, _seq_len, 1]
@@ -598,12 +585,8 @@ class TableTransformer(nn.Module):
             embedded_y,  # (b s e) | None
             num_features=_num_features_orig_main,
             seq_len=_seq_len,
-            cache_embeddings=(
-                self.cache_trainset_representation and single_eval_pos is not None
-            ),
-            use_cached_embeddings=(
-                self.cache_trainset_representation and single_eval_pos is None
-            ),
+            cache_embeddings=(self.cache_trainset_representation and single_eval_pos is not None),
+            use_cached_embeddings=(self.cache_trainset_representation and single_eval_pos is None),
         )
 
         if self.attention_between_features:
@@ -614,13 +597,13 @@ class TableTransformer(nn.Module):
                 embedded_input = torch.cat((embedded_x, embedded_y.unsqueeze(2)), dim=2)
 
         else:
-            assert (
-                not self.x_only_mode
-            ), "x_only_mode is not supported when attention_between_features is False"
+            assert not self.x_only_mode, (
+                "x_only_mode is not supported when attention_between_features is False"
+            )
             # add them together in this case, like for the original PFNs
-            assert (
-                embedded_x.shape[2] == 1
-            ), f"Only 1 feature per group supported for attention_between_features=False, got {embedded_x.shape=}."
+            assert embedded_x.shape[2] == 1, (
+                f"Only 1 feature per group supported for attention_between_features=False, got {embedded_x.shape=}."
+            )
             # b s 1 e + b s 1 e -> b s 1 e
             embedded_input = embedded_x + embedded_y.unsqueeze(2)
 
@@ -635,9 +618,7 @@ class TableTransformer(nn.Module):
             embedded_style = None
 
         if y_style is not None:
-            embedded_y_style = self.y_style_encoder(
-                y_style
-            )  # batch style_dim -> batch emsize
+            embedded_y_style = self.y_style_encoder(y_style)  # batch style_dim -> batch emsize
             embedded_y_style = einops.rearrange(
                 embedded_y_style, "b e -> b 1 1 e"
             )  # batch emsize -> batch 1 1 emsize
@@ -665,16 +646,14 @@ class TableTransformer(nn.Module):
                     dtype=embedded_input.dtype,
                 )
             else:
-                assert (
-                    not self.x_only_mode
-                ), "x_only_mode is not supported when embedded_y_style is not None"
+                assert not self.x_only_mode, (
+                    "x_only_mode is not supported when embedded_y_style is not None"
+                )
 
             if self.x_only_mode:
                 full_embedded_style = embedded_style
             else:
-                full_embedded_style = torch.cat(
-                    (embedded_style, embedded_y_style), dim=2
-                )
+                full_embedded_style = torch.cat((embedded_style, embedded_y_style), dim=2)
 
             embedded_input = torch.cat(
                 (full_embedded_style, embedded_input),
@@ -715,9 +694,7 @@ class TableTransformer(nn.Module):
         ]  # (batch, seq_train_and_style, num_groups[+1_for_y], embed_dim)
 
         if not self.x_only_mode:
-            test_encoder_out = test_encoder_out[
-                :, :, -1, :
-            ]  # (batch, seq_test, embed_dim)
+            test_encoder_out = test_encoder_out[:, :, -1, :]  # (batch, seq_test, embed_dim)
             train_encoder_out = train_encoder_out[
                 :, :, -1, :
             ]  # (batch, seq_train_and_style, embed_dim)
@@ -851,22 +828,19 @@ class LayerStack(nn.Module):
         recompute_each_layer: bool = False,
         min_num_layers_layer_dropout: int | None = None,
     ):
-        """
-        Args:
-            layer_creator: A function that returns the layer as a nn.Module.
-            num_layers: The number of layers to stack.
-            recompute_each_layer: If True, the layers will be recomputed on each
-                forward pass in training. This is useful to save memory.
-            min_num_layers_layer_dropout: If this is set, it enables to drop the last
-                layers randomly during training up to this number.
+        """Args:
+        layer_creator: A function that returns the layer as a nn.Module.
+        num_layers: The number of layers to stack.
+        recompute_each_layer: If True, the layers will be recomputed on each
+            forward pass in training. This is useful to save memory.
+        min_num_layers_layer_dropout: If this is set, it enables to drop the last
+            layers randomly during training up to this number.
         """
         super().__init__()
         self.layers = nn.ModuleList([layer_creator() for _ in range(num_layers)])
         self.num_layers = num_layers
         self.min_num_layers_layer_dropout = (
-            min_num_layers_layer_dropout
-            if min_num_layers_layer_dropout is not None
-            else num_layers
+            min_num_layers_layer_dropout if min_num_layers_layer_dropout is not None else num_layers
         )
         self.recompute_each_layer = recompute_each_layer
 
@@ -878,9 +852,9 @@ class LayerStack(nn.Module):
         **kwargs: Any,
     ) -> torch.Tensor:
         if half_layers:
-            assert (
-                self.min_num_layers_layer_dropout == self.num_layers
-            ), "half_layers only works without layer dropout"
+            assert self.min_num_layers_layer_dropout == self.num_layers, (
+                "half_layers only works without layer dropout"
+            )
             n_layers = self.num_layers // 2
         else:
             n_layers = torch.randint(
@@ -903,8 +877,7 @@ class LayerStack(nn.Module):
 
 @contextmanager
 def isolate_torch_rng(seed: int, device: torch.device) -> Generator[None, None, None]:
-    """
-    Use the specified seed within the context manager (`with isolate_torch_rng(...)`)
+    """Use the specified seed within the context manager (`with isolate_torch_rng(...)`)
     and return to the original state after the context manager exits.
     """
     torch_rng_state = torch.get_rng_state()
@@ -919,9 +892,7 @@ def isolate_torch_rng(seed: int, device: torch.device) -> Generator[None, None, 
             torch.cuda.set_rng_state(torch_cuda_rng_state, device=device)
 
 
-def get_rope_vals(
-    inputs: torch.Tensor, dim: int, base: int = 10_000, multiplier: float = 1.0
-):
+def get_rope_vals(inputs: torch.Tensor, dim: int, base: int = 10_000, multiplier: float = 1.0):
     # inputs has to have shape [b]
 
     assert (dim // 2) * 2 == dim, f"{dim=} not divisible by 2"
@@ -929,13 +900,7 @@ def get_rope_vals(
     theta = (
         multiplier
         * 1000.0
-        / (
-            base
-            ** (
-                torch.arange(0, dim, 2, device=inputs.device)[: (dim // 2)].float()
-                / dim
-            )
-        )
+        / (base ** (torch.arange(0, dim, 2, device=inputs.device)[: (dim // 2)].float() / dim))
     )
 
     deg = torch.einsum("b,d->bd", inputs, theta)

@@ -11,8 +11,7 @@ def exp_in_prev_range(x, factor):
 
 @torch.no_grad()
 def get_batch(*args, hyperparameters, get_batch, **kwargs):
-    """
-    This `get_batch` can be used to wrap another `get_batch` and apply a Kumaraswamy transform to the input.
+    """This `get_batch` can be used to wrap another `get_batch` and apply a Kumaraswamy transform to the input.
     The x's have to be in [0,1] for this to work!
     """
     returns = get_batch(*args, hyperparameters=hyperparameters, **kwargs)
@@ -45,12 +44,8 @@ def get_batch(*args, hyperparameters, get_batch, **kwargs):
                     "input_warping_c0_std" not in hyperparameters
                     and "input_warping_c1_std" not in hyperparameters
                 )
-                hyperparameters["input_warping_c0_std"] = hyperparameters[
-                    "input_warping_c_std"
-                ]
-                hyperparameters["input_warping_c1_std"] = hyperparameters[
-                    "input_warping_c_std"
-                ]
+                hyperparameters["input_warping_c0_std"] = hyperparameters["input_warping_c_std"]
+                hyperparameters["input_warping_c1_std"] = hyperparameters["input_warping_c_std"]
             inside = 0
             while not inside:
                 c1 = (
@@ -63,12 +58,7 @@ def get_batch(*args, hyperparameters, get_batch, **kwargs):
                 ).exp()
                 if not hyperparameters.get("input_warping_in_range", False):
                     inside = True
-                elif (
-                    (c1 < 10).all()
-                    and (c1 > 0).all()
-                    and (c0 < 10).all()
-                    and (c0 > 0).all()
-                ):
+                elif (c1 < 10).all() and (c1 > 0).all() and (c0 < 10).all() and (c0 > 0).all():
                     inside = True
                 else:
                     inside -= 1
@@ -83,9 +73,7 @@ def get_batch(*args, hyperparameters, get_batch, **kwargs):
             k = Kumaraswamy(concentration1=c1, concentration0=c0)
             x_transformed = k.icdf(x) if use_icdf else k.cdf(x)
         elif input_warping_type == "exp":
-            transform_likelihood = hyperparameters.get(
-                "input_warping_transform_likelihood", 0.2
-            )
+            transform_likelihood = hyperparameters.get("input_warping_transform_likelihood", 0.2)
             to_be_transformed = torch.rand_like(x[0, 0]) < transform_likelihood
             transform_factors = torch.rand_like(x[0, 0]) * hyperparameters.get(
                 "input_warping_transform_factor", 1.0

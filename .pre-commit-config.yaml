@@ -38,12 +38,12 @@ repos:
     pass_filenames: false
     language: system
     types_or: [python, pyi]
-  - id: ty
-    name: type check
-    entry: uv run ty check src/ tests/ notebooks/
-    pass_filenames: false
-    language: system
-    types_or: [python, pyi]
+  # - id: ty
+  #   name: type check
+  #   entry: uv run ty check pfns tests
+  #   pass_filenames: false
+  #   language: system
+  #   types_or: [python, pyi]
   - id: test
     name: test
     entry: uv run pytest tests

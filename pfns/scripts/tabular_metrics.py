@@ -1,5 +1,4 @@
-"""
-===============================
+"""===============================
 Metrics calculation
 ===============================
 Includes a few metric as well as functions composing metrics on results files.
@@ -53,9 +52,7 @@ def auc_metric(target, pred, multi_class="ovo", numpy=False):
             pred = torch.tensor(pred) if not torch.is_tensor(pred) else pred
         if len(lib.unique(target)) > 2:
             if not numpy:
-                return torch.tensor(
-                    roc_auc_score(target, pred, multi_class=multi_class)
-                )
+                return torch.tensor(roc_auc_score(target, pred, multi_class=multi_class))
             return roc_auc_score(target, pred, multi_class=multi_class)
         else:
             if len(pred.shape) == 2:
@@ -139,16 +136,12 @@ def is_classification(metric_used):
 
 
 def time_metric():
-    """
-    Dummy function, will just be used as a handler.
-    """
+    """Dummy function, will just be used as a handler."""
     pass
 
 
 def count_metric(x, y):
-    """
-    Dummy function, returns one count per dataset.
-    """
+    """Dummy function, returns one count per dataset."""
     return 1
 
 
@@ -167,8 +160,7 @@ def calculate_score_per_method(
     eval_positions: list,
     aggregator: str = "mean",
 ):
-    """
-    Calculates the metric given by 'metric' and saves it under 'name' in the 'global_results'
+    """Calculates the metric given by 'metric' and saves it under 'name' in the 'global_results'
 
     :param metric: Metric function
     :param name: Name of metric in 'global_results'
@@ -199,10 +191,7 @@ def calculate_score_per_method(
                         valid_positions = valid_positions + 1
                     else:
                         global_results[f"{d[0]}_{name}_at_{pos}"] = aggregator_f(
-                            [
-                                metric(y[split], preds[split])
-                                for split in range(y.shape[0])
-                            ]
+                            [metric(y[split], preds[split]) for split in range(y.shape[0])]
                         )
                         valid_positions = valid_positions + 1
                 except Exception as err:
@@ -227,13 +216,9 @@ def calculate_score_per_method(
             aggregator_f(metrics) if len(metrics) > 0 else np.nan
         )
 
-    metrics = [
-        global_results[f"{aggregator}_{name}_at_{pos}"] for pos in eval_positions
-    ]
+    metrics = [global_results[f"{aggregator}_{name}_at_{pos}"] for pos in eval_positions]
     metrics = [m for m in metrics if not np.isnan(m)]
-    global_results[f"{aggregator}_{name}"] = (
-        aggregator_f(metrics) if len(metrics) > 0 else np.nan
-    )
+    global_results[f"{aggregator}_{name}"] = aggregator_f(metrics) if len(metrics) > 0 else np.nan
 
 
 def calculate_score(
@@ -245,8 +230,7 @@ def calculate_score(
     aggregator="mean",
     limit_to="",
 ):
-    """
-    Calls calculate_metrics_by_method with a range of methods. See arguments of that method.
+    """Calls calculate_metrics_by_method with a range of methods. See arguments of that method.
     :param limit_to: This method will not get metric calculations.
     """
     for m in global_results:
@@ -266,30 +250,24 @@ def make_metric_matrix(global_results, methods, pos, name, ds):
     result = []
     for m in global_results:
         try:
-            result += [
-                [global_results[m][d[0] + "_" + name + "_at_" + str(pos)] for d in ds]
-            ]
+            result += [[global_results[m][d[0] + "_" + name + "_at_" + str(pos)] for d in ds]]
         except Exception:
             result += [[np.nan]]
     result = np.array(result)
     result = pd.DataFrame(
         result.T,
         index=[d[0] for d in ds],
-        columns=[k for k in list(global_results.keys())],
+        columns=list(global_results.keys()),
     )
 
     matrix_means, matrix_stds, matrix_per_split = [], [], []
 
     for method in methods:
         matrix_means += [
-            result.iloc[
-                :, [c.startswith(method + "_time") for c in result.columns]
-            ].mean(axis=1)
+            result.iloc[:, [c.startswith(method + "_time") for c in result.columns]].mean(axis=1)
         ]
         matrix_stds += [
-            result.iloc[
-                :, [c.startswith(method + "_time") for c in result.columns]
-            ].std(axis=1)
+            result.iloc[:, [c.startswith(method + "_time") for c in result.columns]].std(axis=1)
         ]
         matrix_per_split += [
             result.iloc[:, [c.startswith(method + "_time") for c in result.columns]]

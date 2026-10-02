@@ -3,9 +3,9 @@ import math
 
 import scipy
 import torch
+from sklearn.preprocessing import PowerTransformer
 
 from pfns.model import bar_distribution
-from sklearn.preprocessing import PowerTransformer
 
 from ..utils import to_tensor
 
@@ -63,9 +63,7 @@ def rank_transform(x_train, x):
     assert (x >= 0.0).all() and (x <= 1.0).all(), f"{x=}"
     return_x = x.clone()
     for feature_dim in range(x.shape[1]):
-        return_x[:, feature_dim] = _rank_transform(
-            x_train[:, feature_dim], x[:, feature_dim]
-        )
+        return_x[:, feature_dim] = _rank_transform(x_train[:, feature_dim], x[:, feature_dim])
     return return_x
 
 
@@ -143,8 +141,7 @@ def general_acq_function(
     verbose=False,
     unsafe_power_transform=False,
 ):
-    """
-    Differences to HEBO:
+    """Differences to HEBO:
         - The noise can't be set in the same way, as it depends on the tuning of HPs via VI.
         - Log EI and PI are always used directly instead of using the approximation.
 
@@ -198,10 +195,7 @@ def general_acq_function(
     if remove_features_with_one_value_only:
         x_all = torch.cat([x_given, x_eval], dim=0)
         only_one_value_feature = (
-            torch.tensor(
-                [len(torch.unique(x_all[:, i])) for i in range(x_all.shape[1])]
-            )
-            == 1
+            torch.tensor([len(torch.unique(x_all[:, i])) for i in range(x_all.shape[1])]) == 1
         )
         x_given = x_given[:, ~only_one_value_feature]
         x_eval = x_eval[:, ~only_one_value_feature]
@@ -218,9 +212,9 @@ def general_acq_function(
         )
 
         large_values = (tx > 1.0 - m) & (tx < 1.0)
-        tx[large_values] = 1.0 - m * (
-            torch.log(1 - tx[large_values] + eps) - math.log(eps)
-        ) / (math.log(m + eps) - math.log(eps))
+        tx[large_values] = 1.0 - m * (torch.log(1 - tx[large_values] + eps) - math.log(eps)) / (
+            math.log(m + eps) - math.log(eps)
+        )
         x_given = tx[: len(x_given)]
         x_eval = tx[len(x_given) :]
 
@@ -299,10 +293,7 @@ def general_acq_function(
                 dim=1,
             )
 
-        if (
-            ensemble_input_rank_transform == "train"
-            or ensemble_input_rank_transform is True
-        ):
+        if ensemble_input_rank_transform == "train" or ensemble_input_rank_transform is True:
             x_full_feed = torch.cat(
                 [
                     rank_transform(x_given, x_full_feed[:, i, :])[:, None]
@@ -316,9 +307,7 @@ def general_acq_function(
             assert apply_power_transform is False
             y_full_feed = torch.cat(
                 (
-                    general_power_transform(
-                        y_full_feed, y_full_feed, power_transform_eps
-                    ),
+                    general_power_transform(y_full_feed, y_full_feed, power_transform_eps),
                     y_full_feed,
                 ),
                 dim=1,
@@ -430,8 +419,7 @@ def general_acq_function(
         acq_values = torch.stack([ucb, log_ei, log_pi], dim=1)
 
         def is_pareto_efficient(costs):
-            """
-            Find the pareto-efficient points
+            """Find the pareto-efficient points
             :param costs: An (n_points, n_costs) array
             :return: A (n_points, ) boolean array, indicating whether each point is Pareto efficient
             """
@@ -462,8 +450,7 @@ def simple_ei_acquisition(
     y_eval_for_finetuning=None,
     do_rand_search=False,
 ):
-    """
-    Simple Expected Improvement (EI) acquisition function using the provided model's criterion.
+    """Simple Expected Improvement (EI) acquisition function using the provided model's criterion.
 
     :param model: Model object with a criterion that has an ei method
     :param x_given: torch.Tensor of shape (..., N, D) where ... is optional batch dimensions
@@ -495,9 +482,7 @@ def simple_ei_acquisition(
     y_transposed = y_given.transpose(0, 1)
     # print(f"x_combined shape: {x_combined.shape}, y_transposed shape: {y_transposed.shape}")
     with torch.set_grad_enabled(y_eval_for_finetuning is not None):
-        logits = model(
-            (x_combined, y_transposed), single_eval_pos=y_given.shape[1]
-        ).transpose(0, 1)
+        logits = model((x_combined, y_transposed), single_eval_pos=y_given.shape[1]).transpose(0, 1)
         if y_eval_for_finetuning is not None:
             losses = criterion(logits, y_eval_for_finetuning).transpose(0, 1)
             mean_loss = losses.mean()
@@ -528,8 +513,7 @@ def optimize_acq(
     lr=0.01,
     **kwargs,
 ):
-    """
-    intervals are assumed to be between 0 and 1
+    """Intervals are assumed to be between 0 and 1
     only works with ei
     recommended extra kwarg: ensemble_input_rank_transform=='train'
 
@@ -547,9 +531,7 @@ def optimize_acq(
     opt = torch.optim.Adam(params=[x_eval], lr=lr)
     best_acq, best_x = -float("inf"), x_eval[0].detach()
     for _grad_step in range(num_grad_steps):
-        acq = general_acq_function(
-            model, known_x, known_y, x_eval, return_actual_ei=True, **kwargs
-        )
+        acq = general_acq_function(model, known_x, known_y, x_eval, return_actual_ei=True, **kwargs)
         max_acq = acq.detach().max().item()
         if max_acq > best_acq:
             best_x = x_eval[acq.argmax()].detach()
@@ -575,12 +557,11 @@ def optimize_acq_w_lbfgs(
     pre_sample_size=100_000,
     device="cpu",
     verbose=False,
-    dims_wo_gradient_opt=tuple(),
+    dims_wo_gradient_opt=(),
     rand_sample_func=None,
     **kwargs,
 ):
-    """
-    intervals are assumed to be between 0 and 1
+    """Intervals are assumed to be between 0 and 1
     only works with deterministic acq
     recommended extra kwarg: ensemble_input_rank_transform=='train'
 
@@ -602,9 +583,7 @@ def optimize_acq_w_lbfgs(
     known_x = known_x.to(device)
     known_y = known_y.to(device)
     pre_sample_size = max(pre_sample_size, num_candidates)
-    rand_sample_func = rand_sample_func or (
-        lambda n: torch.rand(n, num_features, device=device)
-    )
+    rand_sample_func = rand_sample_func or (lambda n: torch.rand(n, num_features, device=device))
     if len(known_x) < pre_sample_size:
         x_initial = torch.cat(
             (
@@ -785,13 +764,13 @@ class TransformerBOMethod:
             y_obs = y_obs.unsqueeze(0)
             X_pen = X_pen.unsqueeze(0)
         else:
-            assert (
-                self.acq_function.__name__ == "simple_ei_acquisition"
-            ), "acq_function must be simple_ei_acquisition"
+            assert self.acq_function.__name__ == "simple_ei_acquisition", (
+                "acq_function must be simple_ei_acquisition"
+            )
 
-        assert X_obs.size(1) == y_obs.size(
-            1
-        ), "make sure both X_obs and y_obs have the same length."
+        assert X_obs.size(1) == y_obs.size(1), (
+            "make sure both X_obs and y_obs have the same length."
+        )
 
         self.model.to(self.device)
 
@@ -804,11 +783,7 @@ class TransformerBOMethod:
         if y_pen_for_finetuning is not None:
             kwargs["y_eval_for_finetuning"] = y_pen_for_finetuning
 
-        with (
-            torch.cuda.amp.autocast()
-            if self.device[:3] != "cpu"
-            else contextlib.nullcontext()
-        ):
+        with torch.cuda.amp.autocast() if self.device[:3] != "cpu" else contextlib.nullcontext():
             acq_values, extras = self.acq_function(
                 self.model,
                 X_obs,
@@ -821,9 +796,7 @@ class TransformerBOMethod:
             acq_mask = acq_values == acq_values.max(dim=1, keepdim=True)[0]
 
         possible_next = [torch.arange(X_pen.size(1))[mask] for mask in acq_mask]
-        possible_next = [
-            pn if len(pn) > 0 else torch.arange(X_pen.size(1)) for pn in possible_next
-        ]
+        possible_next = [pn if len(pn) > 0 else torch.arange(X_pen.size(1)) for pn in possible_next]
 
         r = [pn[torch.randperm(len(pn))[0]].cpu().item() for pn in possible_next]
 

@@ -2,6 +2,7 @@ import functools
 from typing import Any
 
 import torch
+
 from pfns.model.save_peak_memory import support_save_peak_mem_factor
 
 # This empirically seems to be the hidden size

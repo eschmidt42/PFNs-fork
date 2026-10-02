@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Command-line interface for training PFNs models.
-"""
+"""Command-line interface for training PFNs models."""
 
 import argparse
 import io
@@ -10,11 +8,11 @@ import sys
 from functools import partial
 from pathlib import Path
 
+import torch
+from manifold.clients.python import ManifoldClient
+
 import pfns.run_training_cli as original_cli
 import pfns.train
-import torch
-
-from manifold.clients.python import ManifoldClient
 
 from .discrete_eval import evaluate_bo_on_hpob
 from .discrete_pfns_bayesopt import get_acquisition_values_pfn
@@ -75,8 +73,7 @@ def parse_args():
 
 
 def manifold_load(path: str, map_location: str | None = None) -> object:
-    """
-    A wrapper around torch.load with the same API.
+    """A wrapper around torch.load with the same API.
     Loads from manifold instead of local disk, though.
 
     Args:
@@ -86,7 +83,6 @@ def manifold_load(path: str, map_location: str | None = None) -> object:
     Returns:
         The loaded object.
     """
-
     with ManifoldClient.get_client("ae_generic") as client:
         stream = io.BytesIO()
         client.sync_get(path, stream)
@@ -95,8 +91,7 @@ def manifold_load(path: str, map_location: str | None = None) -> object:
 
 
 def manifold_exists(path: str) -> bool:
-    """
-    A replacement for os.path.exists that works for manifold paths.
+    """A replacement for os.path.exists that works for manifold paths.
 
     Args:
         path: The path to check. The path has the format: manifold://<bucket>/<path>.
@@ -104,14 +99,12 @@ def manifold_exists(path: str) -> bool:
     Returns:
         True if the path exists, False otherwise.
     """
-
     with ManifoldClient.get_client("ae_generic") as client:
         return client.sync_exists(path)
 
 
 def manifold_save(obj, path: str):
-    """
-    A wrapper around torch.save with the same API that saves to manifold.
+    """A wrapper around torch.save with the same API that saves to manifold.
 
     Args:
         obj: The object to save.
@@ -133,9 +126,7 @@ def manifold_save(obj, path: str):
         stream = io.BytesIO()
         torch.save(obj, stream)
         stream.seek(0)
-        client.sync_put(
-            path, stream, predicate=ManifoldClient.Predicates.AllowOverwrite
-        )
+        client.sync_put(path, stream, predicate=ManifoldClient.Predicates.AllowOverwrite)
 
 
 def main():
@@ -154,20 +145,20 @@ def main():
         return Path(config_file).stem
 
     if args.checkpoint_save_load_suffix:
-        assert (
-            args.checkpoint_save_load_prefix is not None
-        ), "checkpoint_save_load_prefix is required when checkpoint_save_load_suffix is provided"
+        assert args.checkpoint_save_load_prefix is not None, (
+            "checkpoint_save_load_prefix is required when checkpoint_save_load_suffix is provided"
+        )
 
     config_tensorboard_path_is_none = config.tensorboard_path is None
 
     # Override checkpoint paths if specified via CLI
     if args.checkpoint_save_load_prefix is not None:
-        assert (
-            config.train_state_dict_save_path is None
-        ), "train_state_dict_save_path is already set"
-        assert (
-            config.train_state_dict_load_path is None
-        ), "train_state_dict_load_path is already set"
+        assert config.train_state_dict_save_path is None, (
+            "train_state_dict_save_path is already set"
+        )
+        assert config.train_state_dict_load_path is None, (
+            "train_state_dict_load_path is already set"
+        )
         assert config_tensorboard_path_is_none, "tensorboard_path is already set"
 
         # Add suffix if it exists
@@ -198,9 +189,7 @@ def main():
     # We overwrite the config with the one from the checkpoint if it exists
     # as there is some randomness in the config and we want to use the exact
     # same config again.
-    if pfns.train.should_load_checkpoint(
-        config, check_path_exists_function=manifold_exists
-    ):
+    if pfns.train.should_load_checkpoint(config, check_path_exists_function=manifold_exists):
         config = pfns.train.load_config(
             config.train_state_dict_load_path, load_function=manifold_load
         )

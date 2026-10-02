@@ -22,8 +22,7 @@ use_foreach = hasattr(torch, "_foreach_mul_")
 
 
 class AdamWScheduleFree(torch.optim.Optimizer):
-    r"""
-    Schedule-Free AdamW
+    r"""Schedule-Free AdamW
     As the name suggests, no scheduler is needed with this optimizer.
     To add warmup, rather than using a learning rate schedule you can just
     set the warmup_steps parameter.
@@ -68,21 +67,21 @@ class AdamWScheduleFree(torch.optim.Optimizer):
         weight_lr_power: float = 2.0,
         foreach: Optional[bool] = use_foreach,
     ):
-        defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            r=r,
-            k=0,
-            warmup_steps=warmup_steps,
-            train_mode=False,
-            weight_sum=0.0,
-            lr_max=-1.0,
-            scheduled_lr=0.0,
-            weight_lr_power=weight_lr_power,
-            weight_decay=weight_decay,
-            foreach=foreach,
-        )
+        defaults = {
+            "lr": lr,
+            "betas": betas,
+            "eps": eps,
+            "r": r,
+            "k": 0,
+            "warmup_steps": warmup_steps,
+            "train_mode": False,
+            "weight_sum": 0.0,
+            "lr_max": -1.0,
+            "scheduled_lr": 0.0,
+            "weight_lr_power": weight_lr_power,
+            "weight_decay": weight_decay,
+            "foreach": foreach,
+        }
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -163,9 +162,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
 
             for p in active_p:
                 if "z" not in self.state[p]:
-                    self.state[p]["z"] = torch.clone(
-                        p, memory_format=torch.preserve_format
-                    )
+                    self.state[p]["z"] = torch.clone(p, memory_format=torch.preserve_format)
                     self.state[p]["exp_avg_sq"] = torch.zeros_like(
                         p, memory_format=torch.preserve_format
                     )

@@ -65,7 +65,7 @@ class PFNOptimizer(AbstractOptimizer):
 
         self.X = []
         self.y = []
-        self.api_config = {key: value for key, value in sorted(api_config.items())}
+        self.api_config = dict(sorted(api_config.items()))
         self.hp_names = list(self.api_config.keys())
         # self.model.encoder.num_features = 18
 
@@ -86,9 +86,7 @@ class PFNOptimizer(AbstractOptimizer):
         self.max_initial_design = max_initial_design
         self.fixed_initial_guess = fixed_initial_guess
         self.minmax_encode_y = minmax_encode_y
-        self.rand_sugg_after_x_steps_of_stagnation = (
-            rand_sugg_after_x_steps_of_stagnation
-        )
+        self.rand_sugg_after_x_steps_of_stagnation = rand_sugg_after_x_steps_of_stagnation
         self.model.eval()
 
         print(api_config)
@@ -159,9 +157,7 @@ class PFNOptimizer(AbstractOptimizer):
             # sampler = qmc.Sobol(d=len(self.max_values), scramble=False)
             # temp_guess = sampler.random_base2(m=len(self.max_values))
             temp_guess = self.sobol.draw(1).numpy()[0]
-            temp_guess = (
-                temp_guess * (self.max_values - self.min_values) + self.min_values
-            )
+            temp_guess = temp_guess * (self.max_values - self.min_values) + self.min_values
 
             x_guess = {}
             for j, feature in enumerate(self.api_config):
@@ -172,9 +168,7 @@ class PFNOptimizer(AbstractOptimizer):
         else:
             x_guess = {}
             for i, feature in enumerate(self.api_config):
-                temp_guess = np.random.uniform(
-                    self.min_values[i], self.max_values[i], 1
-                )[0]
+                temp_guess = np.random.uniform(self.min_values[i], self.max_values[i], 1)[0]
                 temp_guess = self.transform_feature_inverse(temp_guess, i)
 
                 x_guess[feature] = temp_guess
@@ -206,7 +200,7 @@ class PFNOptimizer(AbstractOptimizer):
         n_suggestions : int
             Desired number of parallel suggestions in the output
 
-        Returns
+        Returns:
         -------
         next_guess : list of dict
             List of `n_suggestions` suggestions to evaluate the objective
@@ -226,12 +220,7 @@ class PFNOptimizer(AbstractOptimizer):
                 if len(self.X) == 0 and self.fixed_initial_guess is not None:
                     x_guess = [
                         self.transform_back(
-                            np.array(
-                                [
-                                    self.fixed_initial_guess
-                                    for _ in range(len(self.bounds))
-                                ]
-                            )
+                            np.array([self.fixed_initial_guess for _ in range(len(self.bounds))])
                         )
                     ]
                 else:
@@ -242,9 +231,7 @@ class PFNOptimizer(AbstractOptimizer):
                 temp_X = self.min_max_encode(temp_X)
                 if self.minmax_encode_y:
                     temp_y = (
-                        MinMaxScaler()
-                        .fit_transform(np.array(self.y).reshape(-1, 1))
-                        .reshape(-1)
+                        MinMaxScaler().fit_transform(np.array(self.y).reshape(-1, 1)).reshape(-1)
                     )
                 else:
                     temp_y = np.array(self.y)
@@ -254,10 +241,7 @@ class PFNOptimizer(AbstractOptimizer):
                     and len(self.y) > self.rand_sugg_after_x_steps_of_stagnation
                     and not self.rand_prev
                 ):
-                    if (
-                        temp_y[: -self.rand_sugg_after_x_steps_of_stagnation].max()
-                        == temp_y.max()
-                    ):
+                    if temp_y[: -self.rand_sugg_after_x_steps_of_stagnation].max() == temp_y.max():
                         print(
                             f"Random suggestion after >= {self.rand_sugg_after_x_steps_of_stagnation} steps of stagnation"
                         )
@@ -282,13 +266,9 @@ class PFNOptimizer(AbstractOptimizer):
                 temp_X = temp_X.to(self.device)
                 temp_y = temp_y.to(self.device)
 
-                if self.fit_encoder_from_step and self.fit_encoder_from_step <= len(
-                    self.X
-                ):
+                if self.fit_encoder_from_step and self.fit_encoder_from_step <= len(self.X):
                     with torch.enable_grad():
-                        w = tune_input_warping.fit_input_warping(
-                            self.model, temp_X, temp_y
-                        )
+                        w = tune_input_warping.fit_input_warping(self.model, temp_X, temp_y)
                     temp_X_warped = w(temp_X).detach()
                 else:
                     temp_X_warped = temp_X
@@ -297,9 +277,7 @@ class PFNOptimizer(AbstractOptimizer):
                     if self.acqf_optimizer_name == "lbfgs":
 
                         def rand_sample_func(n):
-                            pre_samples = torch.rand(
-                                n, temp_X_warped.shape[1], device="cpu"
-                            )
+                            pre_samples = torch.rand(n, temp_X_warped.shape[1], device="cpu")
                             back_transformed_samples = [
                                 self.transform_back(sample) for sample in pre_samples
                             ]
@@ -429,10 +407,8 @@ class PFNOptimizer(AbstractOptimizer):
             y[:] = 1e10
 
         if not np.isnan(y) and not np.isinf(y):
-            assert (
-                len(y) == 1 and len(X) == 1
-            ), "Only one suggestion at a time is supported"
-            X = {key: value for key, value in sorted(X[0].items())}
+            assert len(y) == 1 and len(X) == 1, "Only one suggestion at a time is supported"
+            X = dict(sorted(X[0].items()))
             assert (
                 list(X.keys())
                 == list(self.api_config.keys())
@@ -454,7 +430,7 @@ class PFNOptimizer(AbstractOptimizer):
 
 
 def test():
-    from bayesmark.experiment import _build_test_problem, OBJECTIVE_NAMES, run_study
+    from bayesmark.experiment import OBJECTIVE_NAMES, _build_test_problem, run_study
 
     # function_instance = _build_test_problem(model_name='ada', dataset='breast', scorer='nll', path=None)
     function_instance = _build_test_problem(

@@ -72,9 +72,7 @@ def update_importance_sampling_infos(
     normalized_squared_grad_magnitudes = {}
     total_normalized_grad_magnitude = None
     # Compute grad magnitude normalized by Adam's beta2 parameter if Adam optimizer is used
-    if squared_grad_magnitudes and isinstance(
-        optimizer, (torch.optim.Adam, torch.optim.AdamW)
-    ):
+    if squared_grad_magnitudes and isinstance(optimizer, (torch.optim.Adam, torch.optim.AdamW)):
         beta2 = optimizer.param_groups[0]["betas"][1]
         # Get the current state of Adam's running average of squared gradients
         for name, param in model.named_parameters():
@@ -85,11 +83,7 @@ def update_importance_sampling_infos(
                     normalized_grad_magnitude = (
                         (
                             (param.grad**2)
-                            / (
-                                state["exp_avg_sq"]
-                                * (1 - beta2 ** state.get("step", 1))
-                                + 1e-8
-                            )
+                            / (state["exp_avg_sq"] * (1 - beta2 ** state.get("step", 1)) + 1e-8)
                         )
                         .sum()
                         .cpu()
@@ -140,8 +134,7 @@ def move_y_style_and_check_shape(
             raise ValueError(f"y_style must have 2 dimensions, got {y_style.shape}")
         if broken:
             raise ValueError(
-                f"y_style must have the same batch size as y, got {y_style.shape=} "
-                f"and {y.shape=}"
+                f"y_style must have the same batch size as y, got {y_style.shape=} and {y.shape=}"
             )
     return y_style
 

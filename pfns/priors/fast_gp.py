@@ -109,7 +109,7 @@ def get_batch(batch_size, seq_len, num_features, device=default_device, hyperpar
                                                              hyperparameters['sampling'][len('gmix_'):].split('_')]
                 n_centers_max = int(n_centers_max)
                 def get_x(batch_size, n_samples, num_features, blob_width, n_centers_max, stddev, device):
-                    n_centers = torch.randint(1, n_centers_max, tuple(), device=device)
+                    n_centers = torch.randint(1, n_centers_max, (), device=device)
                     centers = torch.rand((batch_size, n_centers, num_features), device=device) * blob_width - blob_width / 2
                     center_assignments = torch.randint(n_centers, (batch_size, n_samples,), device=device)
                     noise = torch.randn((batch_size, n_samples, num_features), device=device) * stddev

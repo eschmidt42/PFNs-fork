@@ -1,7 +1,6 @@
 import torch
 
 from ..utils import default_device
-
 from .prior import Batch
 
 
@@ -16,8 +15,7 @@ def get_batch(
     hyperparameters=None,
     **kwargs,
 ):
-    """
-    This function assumes that every x is in the range [0, 1].
+    """This function assumes that every x is in the range [0, 1].
     Style shape is (batch_size, 3*num_features) under the assumption that get_batch returns a batch
     with shape (seq_len, batch_size, num_features).
     The style is build the following way: [prob_of_feature_1_in_range, range_min_of_feature_1, range_max_of_feature_1, ...]
@@ -34,7 +32,6 @@ def get_batch(
     :param kwargs:
     :return:
     """
-
     if hyperparameters is None:
         hyperparameters = {}
 
@@ -69,21 +66,13 @@ def get_batch(
     )
 
     optima_inds = (
-        batch.target_y.argmax(0).squeeze()
-        if maximize
-        else batch.target_y.argmin(0).squeeze()
+        batch.target_y.argmax(0).squeeze() if maximize else batch.target_y.argmin(0).squeeze()
     )  # batch_size
-    optima = batch.x[
-        optima_inds, torch.arange(batch_size, device=device)
-    ]  # shape: (batch_size, d)
+    optima = batch.x[optima_inds, torch.arange(batch_size, device=device)]  # shape: (batch_size, d)
 
-    optima_sections = torch.min(
-        torch.floor(optima * division_size).long(), division_size - 1
-    )
+    optima_sections = torch.min(torch.floor(optima * division_size).long(), division_size - 1)
     random_sections = torch.min(
-        torch.floor(
-            torch.rand(batch_size, batch.x.shape[2], device=device) * division_size
-        ).long(),
+        torch.floor(torch.rand(batch_size, batch.x.shape[2], device=device) * division_size).long(),
         division_size - 1,
     )
 
@@ -92,8 +81,8 @@ def get_batch(
     ).float()  # shape: (batch_size, d)
     sections /= division_size.float()
     assert tuple(sections.shape) == (batch_size, d)
-    batch.style = torch.stack(
-        [prob_correct, sections, sections + 1 / division_size], 2
-    ).view(batch_size, -1)  # shape: (batch_size, 3*d)
+    batch.style = torch.stack([prob_correct, sections, sections + 1 / division_size], 2).view(
+        batch_size, -1
+    )  # shape: (batch_size, 3*d)
 
     return batch

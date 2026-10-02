@@ -10,8 +10,7 @@ from .trees import evaluate_tree, sample_tree
 
 
 def sample_x(num_samples, num_features, num_tree_leaves, num_constants):
-    """
-    Sample input data for tree evaluation.
+    """Sample input data for tree evaluation.
     Only part of the input of the tree is used.
 
     Args:
@@ -24,9 +23,9 @@ def sample_x(num_samples, num_features, num_tree_leaves, num_constants):
         x: Actual input data of shape [num_samples, num_features]
         tree_inputs: Inputs for the tree of shape [num_samples, num_tree_inputs]
     """
-    assert (
-        num_tree_leaves > num_constants
-    ), f"num_tree_leaves ({num_tree_leaves}) must be greater than num_constants ({num_constants})"
+    assert num_tree_leaves > num_constants, (
+        f"num_tree_leaves ({num_tree_leaves}) must be greater than num_constants ({num_constants})"
+    )
 
     # Generate random input data
     x = torch.randn(num_samples, num_features)
@@ -39,12 +38,8 @@ def sample_x(num_samples, num_features, num_tree_leaves, num_constants):
     selected_dims = random.choices(range(num_features), k=num_dims_left_to_fill)
 
     # Map selected dimensions to remaining tree inputs
-    if (
-        selected_dims
-    ):  # Ensure selected_dims is not empty to prevent errors with slicing
-        tree_inputs[:, num_constants : num_constants + len(selected_dims)] = x[
-            :, selected_dims
-        ]
+    if selected_dims:  # Ensure selected_dims is not empty to prevent errors with slicing
+        tree_inputs[:, num_constants : num_constants + len(selected_dims)] = x[:, selected_dims]
 
     return x, tree_inputs
 
@@ -81,17 +76,14 @@ def get_batch(
     return_trees=False,
     batch_size_per_gp_sample=None,
 ):
-    assert (
-        n_targets_per_input == 1
-    ), "n_targets_per_input must be 1 for now (can be changed later)"
+    assert n_targets_per_input == 1, "n_targets_per_input must be 1 for now (can be changed later)"
     hyperparameters = hyperparameters or {}
 
     batch_as_list = []
 
     while len(batch_as_list) < batch_size:
         x, y, tree = sample_dataset(
-            num_samples=seq_len
-            + int(surplus_samples_share_for_hiding_normalization * seq_len),
+            num_samples=seq_len + int(surplus_samples_share_for_hiding_normalization * seq_len),
             num_features=num_features,
             **hyperparameters,
         )
@@ -128,8 +120,7 @@ def sample_dataset(
     max_unary_op_noise_std: float = 0.0,
     max_binary_op_noise_std: float = 0.0,
 ) -> tuple[torch.Tensor, torch.Tensor, np.ndarray]:
-    """
-    Sample a dataset based on a formula tree.
+    """Sample a dataset based on a formula tree.
 
     Args:
         num_samples: Number of samples to generate
@@ -139,7 +130,6 @@ def sample_dataset(
         binary_op_likelihoods: Likelihoods of each binary operation, normalized.
         unary_op_likelihoods: Likelihoods of each unary operation, normalized.
     """
-
     max_tree_leave_share = 1.0 + max_share_oversampled_tree_leaves
     max_num_tree_leaves = int(num_features * max_tree_leave_share)
 
@@ -151,9 +141,9 @@ def sample_dataset(
     )
 
     if binary_op_likelihoods is None:
-        binary_op_likelihoods = {op: 1.0 for op in binary_ops.keys()}
+        binary_op_likelihoods = dict.fromkeys(binary_ops.keys(), 1.0)
     if unary_op_likelihoods is None:
-        unary_op_likelihoods = {op: 1.0 for op in unary_ops.keys()}
+        unary_op_likelihoods = dict.fromkeys(unary_ops.keys(), 1.0)
 
     def binary_op_sampler():
         return random.choices(

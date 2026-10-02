@@ -20,7 +20,7 @@ def get_batch(
         hyperparameters = {}
 
     if hyperparameters.get("normalize_x", False):
-        uniform_float = torch.rand(tuple()).clamp(0.1, 1.0).item()
+        uniform_float = torch.rand(()).clamp(0.1, 1.0).item()
         new_hyperparameters = {
             **hyperparameters,
             "sampling": uniform_float * hyperparameters["sampling"],
@@ -54,9 +54,7 @@ def get_batch(
         style.append(std_style)
 
     if hyperparameters.get("normalize_y", False):
-        returns.y, mean_style, std_style = normalize_data_by_first_k(
-            returns.y, single_eval_pos
-        )
+        returns.y, mean_style, std_style = normalize_data_by_first_k(returns.y, single_eval_pos)
         style += [mean_style, std_style]
 
     returns.style = torch.cat(style, 1) if style else None

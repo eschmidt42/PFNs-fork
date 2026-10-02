@@ -2,13 +2,13 @@ import typing as tp
 from dataclasses import dataclass
 from typing import Literal
 
+from torch import nn
+
 from pfns import base_config
 from pfns.model import encoders, transformer
 from pfns.model.bar_distribution import BarDistribution
 from pfns.model.criterions import BarDistributionConfig, CrossEntropyConfig
 from pfns.model.encoders import StyleEncoderConfig
-
-from torch import nn
 
 
 @dataclass(frozen=True)
@@ -50,9 +50,7 @@ class TransformerConfig(base_config.BaseConfig):
         else:
             raise ValueError(f"Criterion {criterion} not supported")
 
-        decoder_dict = (
-            self.decoder_dict if self.decoder_dict else {"standard": (None, n_out)}
-        )
+        decoder_dict = self.decoder_dict if self.decoder_dict else {"standard": (None, n_out)}
 
         if self.encoder is not None:
             encoder = self.encoder.create_encoder(

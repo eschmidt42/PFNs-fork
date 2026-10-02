@@ -43,9 +43,9 @@ binary_ops = {
     "rr_aad_gate": partial(rr_ad_gate, zero_at_bound=False),
 }
 
-assert (
-    MAX_OP_OR_INPUT_KEY_LENGTH >= len(max(binary_ops.keys(), key=len))
-), "MAX_OP_OR_INPUT_KEY_LENGTH must be greater than the length of the longest binary operation"
+assert MAX_OP_OR_INPUT_KEY_LENGTH >= len(max(binary_ops.keys(), key=len)), (
+    "MAX_OP_OR_INPUT_KEY_LENGTH must be greater than the length of the longest binary operation"
+)
 
 ### unary operations
 
@@ -132,6 +132,6 @@ unary_ops = {
     # 'rr_rel_noise': relative_noise__random,
 }
 
-assert (
-    MAX_OP_OR_INPUT_KEY_LENGTH >= len(max(unary_ops.keys(), key=len))
-), "MAX_OP_OR_INPUT_KEY_LENGTH must be greater than the length of the longest unary operation"
+assert MAX_OP_OR_INPUT_KEY_LENGTH >= len(max(unary_ops.keys(), key=len)), (
+    "MAX_OP_OR_INPUT_KEY_LENGTH must be greater than the length of the longest unary operation"
+)

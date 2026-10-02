@@ -1,5 +1,4 @@
-"""
-This module describes the typical distribution output of the output of PFNs.
+"""This module describes the typical distribution output of the output of PFNs.
 In the literature this distribution is reffered to as Riemann, piece-wise constant, discretized continuous, or bar distribution.
 
 The distributions are used to compute all kinds of metrics, including their negative log densities by callling (their forward),
@@ -10,12 +9,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List
 
 import torch
-from pfns import base_config
 from torch import nn
 from typing_extensions import override
+
+from pfns import base_config
 
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
@@ -108,9 +108,9 @@ class BarDistribution(nn.Module):
             # bring new borders to the same dim as logits up to the last dim
             ys = ys.repeat(logits.shape[:-1] + (1,))
         else:
-            assert (
-                ys.shape[:-1] == logits.shape[:-1]
-            ), f"ys.shape: {ys.shape} logits.shape: {logits.shape}"
+            assert ys.shape[:-1] == logits.shape[:-1], (
+                f"ys.shape: {ys.shape} logits.shape: {logits.shape}"
+            )
         probs = torch.softmax(logits, dim=-1)
         buckets_of_ys = self.map_to_bucket_idx(ys).clamp(0, self.num_bars - 1)
 
@@ -150,18 +150,14 @@ class BarDistribution(nn.Module):
         Returns:
             The logits of the new distribution.
         """
-        if (len(self.borders) == len(new_borders)) and (
-            self.borders == new_borders
-        ).all():
+        if (len(self.borders) == len(new_borders)) and (self.borders == new_borders).all():
             return logits.softmax(-1)
 
         prob_left_of_borders = self.cdf(logits, new_borders)
         prob_left_of_borders[..., 0] = 0.0
         prob_left_of_borders[..., -1] = 1.0
 
-        return (
-            prob_left_of_borders[..., 1:] - prob_left_of_borders[..., :-1]
-        ).clamp_min(0.0)
+        return (prob_left_of_borders[..., 1:] - prob_left_of_borders[..., :-1]).clamp_min(0.0)
 
     def average_bar_distributions_into_this(
         self,
@@ -170,8 +166,7 @@ class BarDistribution(nn.Module):
         *,
         average_logprobs: bool = False,
     ) -> torch.Tensor:
-        """
-        This function averages the logits of multiple bar distributions.
+        """This function averages the logits of multiple bar distributions.
         This is useful when ensembling the predictions of multiplple models with different borders into a single distribution.
 
         Args:
@@ -246,9 +241,9 @@ class BarDistribution(nn.Module):
         ignore_loss_mask = self.ignore_init(y)
         target_sample = self.map_to_bucket_idx(y)
         assert (target_sample >= 0).all()
-        assert (
-            target_sample < self.num_bars
-        ).all(), f"y {y} not in support set for borders (min_y, max_y) {self.borders}"
+        assert (target_sample < self.num_bars).all(), (
+            f"y {y} not in support set for borders (min_y, max_y) {self.borders}"
+        )
 
         last_dim = logits.shape[-1]
         assert last_dim == self.num_bars, f"{last_dim} v {self.num_bars}"
@@ -320,10 +315,7 @@ class BarDistribution(nn.Module):
         """
         p_cdf = torch.rand(*logits.shape[:-1])
         return torch.tensor(
-            [
-                self.icdf(logits=logits[i, :] / t, left_prob=p)
-                for i, p in enumerate(p_cdf.tolist())
-            ],
+            [self.icdf(logits=logits[i, :] / t, left_prob=p) for i, p in enumerate(p_cdf.tolist())],
         )
 
     def quantile(
@@ -444,9 +436,7 @@ class BarDistribution(nn.Module):
         left_borders = self.borders[:-1]
         right_borders = self.borders[1:]
         bucket_mean_of_square = (
-            left_borders.square()
-            + right_borders.square()
-            + left_borders * right_borders
+            left_borders.square() + right_borders.square() + left_borders * right_borders
         ) / 3.0
         p = torch.softmax(logits, -1)
         return p @ bucket_mean_of_square
@@ -477,9 +467,7 @@ class BarDistribution(nn.Module):
             lower_bound = lower_bounds.min().item()
             upper_bound = upper_bounds.max().item()
             ax.set_xlim(lower_bound, upper_bound)
-            border_mask = (self.borders[:-1] >= lower_bound) & (
-                self.borders[1:] <= upper_bound
-            )
+            border_mask = (self.borders[:-1] >= lower_bound) & (self.borders[1:] <= upper_bound)
         else:
             border_mask = slice(None)
         p = torch.softmax(logits, -1) / self.bucket_widths
@@ -498,8 +486,7 @@ class FullSupportBarDistribution(BarDistribution):
         borders: torch.Tensor,
         **kwargs: Any,
     ):
-        """
-        This is the full support bar distribution, which is the same as the bar distribution, but with halfnormal distributions on the sides.
+        """This is the full support bar distribution, which is the same as the bar distribution, but with halfnormal distributions on the sides.
         The half normal distributions are assigned to have 50% of their mass in the first and last bucket, and 50% of their mass outside of the borders.
 
         :param borders: The borders of the distribution, which should start with min and end with max, where all values lie in (min,max) and are sorted.
@@ -513,9 +500,9 @@ class FullSupportBarDistribution(BarDistribution):
 
     def assert_support(self, *, allow_zero_bucket_left: bool = False) -> None:
         if allow_zero_bucket_left:
-            assert (
-                self.bucket_widths[-1] > 0
-            ), f"Half Normal weight must be > 0 (got -1:{self.bucket_widths[-1]})."
+            assert self.bucket_widths[-1] > 0, (
+                f"Half Normal weight must be > 0 (got -1:{self.bucket_widths[-1]})."
+            )
             # This fixes the distribution if the half normal at zero is width zero
             if self.bucket_widths[0] == 0:
                 self.borders[0] = self.borders[0] - 1
@@ -554,13 +541,11 @@ class FullSupportBarDistribution(BarDistribution):
         target_sample = self.map_to_bucket_idx(y)  # shape: T x B (same as y)
         target_sample.clamp_(0, self.num_bars - 1)
 
-        assert (
-            logits.shape[-1] == self.num_bars
-        ), f"{logits.shape[-1]} vs {self.num_bars}"
+        assert logits.shape[-1] == self.num_bars, f"{logits.shape[-1]} vs {self.num_bars}"
         assert (target_sample >= 0).all()
-        assert (
-            target_sample < self.num_bars
-        ).all(), f"y {y} not in support set for borders (min_y, max_y) {self.borders}"
+        assert (target_sample < self.num_bars).all(), (
+            f"y {y} not in support set for borders (min_y, max_y) {self.borders}"
+        )
         last_dim = logits.shape[-1]
         assert last_dim == self.num_bars, f"{last_dim} vs {self.num_bars}"
         # ignore all position with nan values
@@ -634,21 +619,17 @@ class FullSupportBarDistribution(BarDistribution):
         left_borders = self.borders[:-1]
         right_borders = self.borders[1:]
         bucket_mean_of_square = (
-            left_borders.square()
-            + right_borders.square()
-            + left_borders * right_borders
+            left_borders.square() + right_borders.square() + left_borders * right_borders
         ) / 3.0
         side_normals = (
             self.halfnormal_with_p_weight_before(self.bucket_widths[0]),
             self.halfnormal_with_p_weight_before(self.bucket_widths[-1]),
         )
         bucket_mean_of_square[0] = (
-            side_normals[0].variance
-            + (-side_normals[0].mean + self.borders[1]).square()
+            side_normals[0].variance + (-side_normals[0].mean + self.borders[1]).square()
         )
         bucket_mean_of_square[-1] = (
-            side_normals[1].variance
-            + (side_normals[1].mean + self.borders[-2]).square()
+            side_normals[1].variance + (side_normals[1].mean + self.borders[-2]).square()
         )
         p = torch.softmax(logits, -1)
         return p @ bucket_mean_of_square
@@ -843,18 +824,16 @@ def get_bucket_borders(
             If set, the bucket borders are widened by this factor.
             This allows to have a slightly larger range than the actual data.
     """
-    assert (ys is None) != (
-        full_range is None
-    ), "Either full_range or ys must be passed."
+    assert (ys is None) != (full_range is None), "Either full_range or ys must be passed."
 
     if ys is not None:
         ys = ys.flatten()
         ys = ys[~torch.isnan(ys)]
         ys = ys.sort()[0]
         ys = torch.unique_consecutive(ys)
-        assert (
-            len(ys) > num_outputs
-        ), f"Number of ys :{len(ys)} must be larger than num_outputs: {num_outputs}"
+        assert len(ys) > num_outputs, (
+            f"Number of ys :{len(ys)} must be larger than num_outputs: {num_outputs}"
+        )
         if len(ys) % num_outputs:
             ys = ys[: -(len(ys) % num_outputs)]
         ys_per_bucket = len(ys) // num_outputs
@@ -887,9 +866,9 @@ def get_bucket_borders(
             0,
         )
 
-    assert (
-        len(borders) - 1 == num_outputs
-    ), f"len(borders) - 1 == {len(borders) - 1} != {num_outputs} == num_outputs"
+    assert len(borders) - 1 == num_outputs, (
+        f"len(borders) - 1 == {len(borders) - 1} != {num_outputs} == num_outputs"
+    )
 
     if not widen_borders_factor or widen_borders_factor == 1.0:
         assert (

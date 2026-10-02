@@ -10,7 +10,7 @@ The pseudo code for a simple prior that would yield a PFN that does 1d ridge reg
 
 ```python
 def get_dataset_sample():
-    x = RandomUniform(100,1)
+    x = RandomUniform(100, 1)
     a = RandomNormal()
     b = RandomNormal()
     y = a * x + b

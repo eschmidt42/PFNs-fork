@@ -1,7 +1,6 @@
 from math import log, sqrt
 
 import torch
-
 from gpytorch.distributions.multivariate_normal import MultivariateNormal
 from gpytorch.kernels import LinearKernel, MaternKernel, RBFKernel
 from gpytorch.priors import LogNormalPrior
@@ -10,8 +9,7 @@ from pfns.priors.prior import Batch
 
 
 def sample_clustered_x(batch_size, seq_len, num_features, pad_factor: int = 10):
-    """
-    This function samples a batch of inputs from normal distributions.
+    """This function samples a batch of inputs from normal distributions.
     Its outputs are all in [0,1], which is ensured by over-sampling (pad_factor)
     and then rejecting outside samples. In addition, we clamp the values to [0,1].
     """
@@ -60,9 +58,9 @@ def get_batch(
             "dummy_dim_prob": 0.0,
         }
 
-    assert not hyperparameters.get(
-        "noisy_predictions", False
-    ), "noisy_predictions is not supported for x_only mode"
+    assert not hyperparameters.get("noisy_predictions", False), (
+        "noisy_predictions is not supported for x_only mode"
+    )
 
     if hyperparameters["sample_clustered_x"]:
         x_train = sample_clustered_x(batch_size, single_eval_pos, num_features)
@@ -87,9 +85,7 @@ def get_batch(
     if (dummy_dim_prob := hyperparameters.get("dummy_dim_prob", 0.0)) > 0.0:
         num_important_features = 0
         while num_important_features == 0:
-            dummy_dims_mask = torch.bernoulli(
-                torch.full((num_features,), dummy_dim_prob)
-            ).bool()
+            dummy_dims_mask = torch.bernoulli(torch.full((num_features,), dummy_dim_prob)).bool()
             used_dims_mask = ~dummy_dims_mask
             num_important_features = used_dims_mask.sum()
     else:
@@ -173,9 +169,7 @@ def get_batch(
     # we should hide the y from time to time in training but still incorporate it to compute EI
     # that is exactly what we need for batch EI, I believe
     # then we simply do EI and then condition on the point without passing y again
-    number_of_y_hidden = torch.randint(
-        0, hyperparameters.get("max_num_hidden_y", 0) + 1, tuple()
-    )
+    number_of_y_hidden = torch.randint(0, hyperparameters.get("max_num_hidden_y", 0) + 1, ())
     noisy_y[:, single_eval_pos - number_of_y_hidden : single_eval_pos, :] = torch.nan
     full_train_x = torch.cat([x, noisy_y], dim=2)[:, :single_eval_pos, :]
 
@@ -186,10 +180,7 @@ def get_batch(
     if hyperparameters.get("predict_ei", True):
         target_y = (
             target_y[:, single_eval_pos:].squeeze(-1)
-            - target_y[:, :single_eval_pos, :]
-            .squeeze(-1)
-            .max(dim=-1, keepdim=True)
-            .values
+            - target_y[:, :single_eval_pos, :].squeeze(-1).max(dim=-1, keepdim=True).values
         )
     else:
         target_y = target_y[:, single_eval_pos:].squeeze(-1)
@@ -211,9 +202,7 @@ def get_batch(
         num_1_and_2_test_points = test_size - case_3_test_size
 
         max_target_index = target_y.argmax(dim=-1)
-        max_ei_features = x[
-            torch.arange(batch_size), max_target_index + single_eval_pos, :
-        ]
+        max_ei_features = x[torch.arange(batch_size), max_target_index + single_eval_pos, :]
         max_ei_features_and_nan_for_y = torch.cat(
             [max_ei_features, torch.full((batch_size, 1), torch.nan)], dim=1
         )
@@ -238,27 +227,19 @@ def get_batch(
     num_2_test_points = num_1_and_2_test_points - num_1_test_points
 
     if num_1_test_points > 0:
-        target_mask = torch.ones_like(
-            full_target[:, :num_1_test_points, :], dtype=torch.bool
-        )
+        target_mask = torch.ones_like(full_target[:, :num_1_test_points, :], dtype=torch.bool)
         # show targets for case 1
         target_mask[:, :, -1] = False  # not target but shown
 
         # for features, sample uniformly 0 to all
         assert full_target.shape[2] == num_features + 1
-        num_shown_features = torch.randint(
-            0, num_features, (batch_size, num_1_test_points)
-        )
+        num_shown_features = torch.randint(0, num_features, (batch_size, num_1_test_points))
 
         for i in range(batch_size):
             for j in range(num_1_test_points):
                 shown_features_for_example = num_shown_features[i, j]
-                shown_features = torch.randperm(num_features + 1)[
-                    :shown_features_for_example
-                ]
-                target_mask[i, j, shown_features] = (
-                    False  # not in the target_mask anymore
-                )
+                shown_features = torch.randperm(num_features + 1)[:shown_features_for_example]
+                target_mask[i, j, shown_features] = False  # not in the target_mask anymore
 
         assert not target_mask[:, :, -1].any()  # always predict the y target
 
@@ -276,6 +257,4 @@ def get_batch(
         full_test_x[:, num_1_test_points:num_1_and_2_test_points, -1] = torch.nan
         full_target[:, num_1_test_points:num_1_and_2_test_points, :-1] = torch.nan
 
-    return Batch(
-        x=full_train_x, test_x=full_test_x, target=full_target, y=None, target_y=None
-    )
+    return Batch(x=full_train_x, test_x=full_test_x, target=full_target, y=None, target_y=None)

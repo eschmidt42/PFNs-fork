@@ -13,9 +13,7 @@ def get_batch(
     hyperparameters=None,
     **kwargs,
 ):
-    """
-    This is not part of the paper, but feel welcome to use this to write a better version of our user prior.
-
+    """This is not part of the paper, but feel welcome to use this to write a better version of our user prior.
 
     This function assumes that every x is in the range [0, 1].
     Style shape is (batch_size, 3*num_features) under the assumption that get_batch returns a batch
@@ -33,7 +31,6 @@ def get_batch(
     :param kwargs:
     :return:
     """
-
     if hyperparameters is None:
         hyperparameters = {}
 
@@ -56,17 +53,14 @@ def get_batch(
     d = batch.x.shape[2]
 
     division_size = (
-        torch.rand(batch_size, d, device=device) * (size_range[1] - size_range[0])
-        + size_range[0]
+        torch.rand(batch_size, d, device=device) * (size_range[1] - size_range[0]) + size_range[0]
     )
     division_start = torch.rand(batch_size, d, device=device) * (1 - division_size)
 
     assert batch.target_y.shape[2] == 1, "Only support single objective."
 
     optima_inds = (
-        batch.target_y.argmax(1).squeeze(-1)
-        if maximize
-        else batch.target_y.argmin(0).squeeze(-1)
+        batch.target_y.argmax(1).squeeze(-1) if maximize else batch.target_y.argmin(0).squeeze(-1)
     )  # batch_size, d
 
     optima = batch.x[torch.arange(batch_size), optima_inds]  # batch_size, d

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from torch.amp import autocast, GradScaler
+from torch.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -17,7 +17,8 @@ from . import base_config, utils
 from .batch_shape_sampler import BatchShapeSamplerConfig
 from .model.transformer_config import TransformerConfig
 from .optimizer import OptimizerConfig
-from .priors import data_loading, prior, utils as priors_utils
+from .priors import data_loading, prior
+from .priors import utils as priors_utils
 from .training_utils import (
     Metrics,
     move_style_and_check_shape,
@@ -79,8 +80,7 @@ def train(
 ):
     if reusable_config:
         assert c.from_yaml(c.to_yaml()) == c, (
-            "Config is not safe to use, got different config: "
-            f"{c.from_yaml(c.to_yaml())=} vs {c=}"
+            f"Config is not safe to use, got different config: {c.from_yaml(c.to_yaml())=} vs {c=}"
         )
 
     # Arguments from original signature not in MainConfig are set to defaults here
@@ -165,9 +165,9 @@ def train(
         **current_extra_prior_kwargs_dict,
     )
 
-    assert (
-        c.model.features_per_group > 0 or c.model.features_per_group == -1
-    ), "features_per_group must be > 0 or -1"
+    assert c.model.features_per_group > 0 or c.model.features_per_group == -1, (
+        "features_per_group must be > 0 or -1"
+    )
 
     model = c.model.create_model()
     criterion = model.criterion
@@ -199,10 +199,12 @@ def train(
     if scheduler_fn is None:
         scheduler = None
     else:
-        scheduler = scheduler_fn(  # todo move warmup epochs into scheduler args, ideally as steps instead!?
-            optimizer,
-            c.warmup_epochs,
-            c.epochs if c.epochs is not None else 100,
+        scheduler = (
+            scheduler_fn(  # todo move warmup epochs into scheduler args, ideally as steps instead!?
+                optimizer,
+                c.warmup_epochs,
+                c.epochs if c.epochs is not None else 100,
+            )
         )
 
     start_epoch = 1  # Default start epoch
@@ -261,18 +263,14 @@ def train(
                     epoch=epoch,
                 )
                 total_loss = epoch_result.loss
-                data_loader.importance_sampling_infos = (
-                    epoch_result.importance_sampling_infos
-                )
+                data_loader.importance_sampling_infos = epoch_result.importance_sampling_infos
 
             except Exception as e:
                 print("Invalid epoch encountered, skipping...")
                 print(e)
                 raise  # Re-raises the original exception with trace
             if c.validation_period is not None and (
-                (epoch % c.validation_period == 0)
-                or (epoch == c.epochs)
-                or (epoch == 1)
+                (epoch % c.validation_period == 0) or (epoch == c.epochs) or (epoch == 1)
             ):
                 with torch.no_grad():
                     test_data_loader.epoch_count = (
@@ -330,13 +328,9 @@ def train(
                 writer.add_scalar("epoch/epoch_time", epoch_time, epoch)
                 writer.add_scalar("epoch/data_time", epoch_result.data_time, epoch)
                 writer.add_scalar("epoch/step_time", epoch_result.step_time, epoch)
-                writer.add_scalar(
-                    "epoch/forward_time", epoch_result.forward_time, epoch
-                )
+                writer.add_scalar("epoch/forward_time", epoch_result.forward_time, epoch)
                 writer.add_scalar("epoch/nan_share", epoch_result.nan_share, epoch)
-                writer.add_scalar(
-                    "epoch/ignore_share", epoch_result.ignore_share, epoch
-                )
+                writer.add_scalar("epoch/ignore_share", epoch_result.ignore_share, epoch)
 
                 # Log learning rate
                 writer.add_scalar("epoch/learning_rate", current_lr, epoch)
@@ -348,9 +342,7 @@ def train(
 
                 # Log validation loss if available
                 if c.validation_period is not None and (
-                    (epoch % c.validation_period == 0)
-                    or (epoch == c.epochs)
-                    or (epoch == 1)
+                    (epoch % c.validation_period == 0) or (epoch == c.epochs) or (epoch == 1)
                 ):
                     writer.add_scalar("epoch/val_loss", val_epoch_result.loss, epoch)
 
@@ -405,9 +397,7 @@ def train_or_evaluate_epoch(
     writer: SummaryWriter | None = None,
     epoch: int = 1,
 ):
-    """
-    Train or evaluate one epoch.
-    """
+    """Train or evaluate one epoch."""
     if training:
         assert optimizer is not None, "Optimizer must be provided for training"
     else:
@@ -424,14 +414,12 @@ def train_or_evaluate_epoch(
     importance_sampling_infos = []
 
     before_get_batch = time.time()
-    assert (
-        len(dl) % c.aggregate_k_gradients == 0
-    ), "Please set the number of steps per epoch s.t. `aggregate_k_gradients` divides it."
+    assert len(dl) % c.aggregate_k_gradients == 0, (
+        "Please set the number of steps per epoch s.t. `aggregate_k_gradients` divides it."
+    )
 
     tqdm_iter = (
-        tqdm(range(len(dl)), desc="Training Epoch")
-        if rank == 0 and c.progress_bar
-        else None
+        tqdm(range(len(dl)), desc="Training Epoch") if rank == 0 and c.progress_bar else None
     )
 
     for batch_index, batch in enumerate(dl):
@@ -466,42 +454,32 @@ def train_or_evaluate_epoch(
                 with autocast(device.split(":")[0], enabled=scaler is not None):
                     if x_only_mode:
                         assert (
-                            batch.target_y is None
-                            and batch.y is None
-                            and batch.y_style is None
-                        ), "model.x_only_mode is not supported when y, target_y, or y_style are not None"
+                            batch.target_y is None and batch.y is None and batch.y_style is None
+                        ), (
+                            "model.x_only_mode is not supported when y, target_y, or y_style are not None"
+                        )
                         output = model(
-                            x=batch.x.to(
-                                device
-                            ),  # shape: (batch_size, train_len, num_features)
+                            x=batch.x.to(device),  # shape: (batch_size, train_len, num_features)
                             test_x=batch.test_x.to(
                                 device
                             ),  # shape: (batch_size, test_len, num_features)
                             y=None,
-                            style=move_style_and_check_shape(
-                                batch.style, batch.x, device
-                            ),
+                            style=move_style_and_check_shape(batch.style, batch.x, device),
                             only_return_standard_out=True,
                         )  # shape: (batch_size, test_len, num_groups)
                     else:
                         output = model(
                             x=batch.x.to(device),
                             y=batch.y[:, :single_eval_pos].to(device),
-                            style=move_style_and_check_shape(
-                                batch.style, batch.x, device
-                            ),
-                            y_style=move_y_style_and_check_shape(
-                                batch.y_style, batch.y, device
-                            ),
+                            style=move_style_and_check_shape(batch.style, batch.x, device),
+                            y_style=move_y_style_and_check_shape(batch.y_style, batch.y, device),
                             only_return_standard_out=True,
                         )  # shape: (batch_size, test_len)
 
                     forward_time = time.time() - before_forward
 
                     if single_eval_pos is not None and not x_only_mode:
-                        targets = targets[
-                            :, single_eval_pos:
-                        ]  # shape: (batch_size, test_len)
+                        targets = targets[:, single_eval_pos:]  # shape: (batch_size, test_len)
 
                     loss, nan_share = compute_loss(
                         output, targets, criterion, c.n_targets_per_input, x_only_mode
@@ -534,17 +512,17 @@ def train_or_evaluate_epoch(
                     )  # noop if no grads available
 
                     if batch.gradient_multipliers is not None:  # this None by default
-                        assert (
-                            training
-                        ), "Gradient multipliers are only supported for training"
-                        assert (
-                            c.aggregate_k_gradients == 1
-                        ), "Scaling grads is only supported if you don't do grad acc."
+                        assert training, "Gradient multipliers are only supported for training"
+                        assert c.aggregate_k_gradients == 1, (
+                            "Scaling grads is only supported if you don't do grad acc."
+                        )
                         assert all(
                             batch.gradient_multipliers.view(-1)[0]
                             == batch.gradient_multipliers.view(-1)[i]
                             for i in range(batch.gradient_multipliers.numel())
-                        ), "we don't scale losses for now to be able to try the interaction with gradient clipping, and thus we can only support the same scaler"
+                        ), (
+                            "we don't scale losses for now to be able to try the interaction with gradient clipping, and thus we can only support the same scaler"
+                        )
                         # todo make print to see that this is actually running
                         with torch.no_grad():
                             for w in model.parameters():
@@ -603,8 +581,7 @@ def compute_loss(
     n_targets_per_input: int,
     x_only_mode: bool,
 ):
-    """
-    Compute the losses for the given output and targets.
+    """Compute the losses for the given output and targets.
 
     Args:
         output: The output of the model, shape (batch_size, num_eval_positions, n_out) | (batch_size, num_eval_positions, n_features, n_out)
@@ -615,9 +592,7 @@ def compute_loss(
     Returns:
         The losses, shape (batch_size, num_eval_positions)
     """
-    if (
-        len(output.shape) == 3
-    ):  # else it is (batch_size, num_eval_positions, n_features, n_out)
+    if len(output.shape) == 3:  # else it is (batch_size, num_eval_positions, n_features, n_out)
         # Repeat output in the semi-last dimension n_targets_per_input times
         output = output.unsqueeze(2).expand(
             *output.shape[:2],
@@ -637,9 +612,9 @@ def compute_loss(
     )
 
     if isinstance(criterion, nn.GaussianNLLLoss):
-        assert (
-            output.shape[-1] == 2
-        ), "need to write a little bit of code to handle multiple regression targets at once"
+        assert output.shape[-1] == 2, (
+            "need to write a little bit of code to handle multiple regression targets at once"
+        )
 
         mean_pred = output[..., 0]
         var_pred = output[..., 1].abs()
@@ -740,9 +715,7 @@ def save_checkpoint(
 ):
     set_model_to(model, optimizer, "eval")
     save_model = (
-        model.module
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel)
-        else model
+        model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
     )
     print(f"Saving checkpoint to {train_state_dict_save_path} (epoch {epoch})")
     try:

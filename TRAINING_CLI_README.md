@@ -112,8 +112,8 @@ from pfns.batch_shape_sampler import BatchShapeSamplerConfig
 
 
 # You can use environment variables
-epochs = int(os.getenv('EPOCHS', '100'))
-use_gpu = os.getenv('USE_GPU', 'true').lower() == 'true'
+epochs = int(os.getenv("EPOCHS", "100"))
+use_gpu = os.getenv("USE_GPU", "true").lower() == "true"
 
 # You can have conditional logic
 if use_gpu:
@@ -125,16 +125,18 @@ else:
 
 # You can dynamically create configurations
 priors = []
-if os.getenv('USE_FORMULA_PRIOR', 'true').lower() == 'true':
-    priors.append(FormulaPriorConfig(
-        # formula-specific config
-    ))
+if os.getenv("USE_FORMULA_PRIOR", "true").lower() == "true":
+    priors.append(
+        FormulaPriorConfig(
+            # formula-specific config
+        )
+    )
 
 # You can reuse configuration components
 base_model_config = {
-    'd_model': 512,
-    'n_heads': 8,
-    'n_layers': 6,
+    "d_model": 512,
+    "n_heads": 8,
+    "n_layers": 6,
 }
 
 model = TransformerConfig(**base_model_config)
@@ -209,7 +211,7 @@ The CLI is designed to work seamlessly with the existing `train` function. You c
 2. Use the `train` function directly in scripts
 3. Mix both approaches as needed
 
-The CLI simply provides a convenient interface to the same underlying training functionality. 
+The CLI simply provides a convenient interface to the same underlying training functionality.
 
 
 
@@ -222,8 +224,8 @@ This can be done like so:
 from pfns.train import MainConfig
 
 checkpoint = torch.load(CHECKPOINT_PATH)
-c = MainConfig.from_dict(checkpoint['config'])
+c = MainConfig.from_dict(checkpoint["config"])
 model = c.model.create_model()
-model.load_state_dict(checkpoint['model_state_dict'])
+model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 ```
