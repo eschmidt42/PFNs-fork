@@ -27,6 +27,8 @@ dependencies=[
     'matplotlib>=3.10.1',
     'einops>=0.8.1',
     'tensorboard>=2.20.0',
+    "polars>=1.44.2",
+    "pyarrow>=25.0.1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
