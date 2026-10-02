@@ -1,13 +1,14 @@
 import numpy as np
+import pytest
 import torch
+from scipy import stats
 
 from pfns.priors.hyperparameter_sampling import (
+    DistributionConfig,
     PowerUniformFloatDistConfig,
     UniformFloatDistConfig,
-    DistributionConfig
 )
-from scipy import stats
-import pytest
+
 
 @pytest.mark.xfail
 def test_distribution_normalizers():
@@ -15,18 +16,16 @@ def test_distribution_normalizers():
     This is done by sampling many times and checking the histogram of normalized values.
     """
 
-    def check_distribution_uniformity(
-        samples: np.ndarray, name: str, p_threshold: float = 0.02
-    ):
+    def check_distribution_uniformity(samples: np.ndarray, name: str, p_threshold: float = 0.02):
         """Use Kolmogorov-Smirnov test to check if normalized samples are uniform"""
         # Test against uniform distribution on [0,1]
         ks_stat, p_value = stats.kstest(samples, "uniform")
-        assert (
-            p_value > p_threshold
-        ), f"{name} normalized samples failed uniformity test with p={p_value:.4f}"
+        assert p_value > p_threshold, (
+            f"{name} normalized samples failed uniformity test with p={p_value:.4f}"
+        )
 
     # Test cases for each distribution type
-    test_cases: list[tuple[DistributionConfig,str]] = [
+    test_cases: list[tuple[DistributionConfig, str]] = [
         (
             UniformFloatDistConfig(lower=0.1, upper=10.0, log=False),
             "UniformFloat",
@@ -59,6 +58,6 @@ def test_distribution_normalizers():
         check_distribution_uniformity(normalized.numpy(), name)
 
         # Basic range check
-        assert torch.all(normalized >= 0) and torch.all(
-            normalized <= 1
-        ), f"{name} normalized values outside [0,1] range"
+        assert torch.all(normalized >= 0) and torch.all(normalized <= 1), (
+            f"{name} normalized values outside [0,1] range"
+        )

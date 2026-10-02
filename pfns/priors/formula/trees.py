@@ -4,7 +4,7 @@ from typing import Callable, List, Tuple
 import numpy as np
 import torch
 
-from .ops import binary_ops, MAX_OP_OR_INPUT_KEY_LENGTH, unary_ops
+from .ops import MAX_OP_OR_INPUT_KEY_LENGTH, binary_ops, unary_ops
 
 node_dtype = np.dtype(
     [
@@ -56,12 +56,10 @@ def sample_tree(
     num_leaves: int,
     binary_op_sampler: Callable[[], str],
     unary_op_sampler: Callable[[], str | None] = None,
-    factor_bias_sampler: Callable[[str, int], Tuple[List[float], List[float]]]
-    | None = None,
+    factor_bias_sampler: Callable[[str, int], Tuple[List[float], List[float]]] | None = None,
     node_noise_sampler: Callable[[str, str], float] | None = None,
 ) -> Tuple[np.ndarray, List[int]]:  # the array is a list of type node_dtype
-    """
-    Samples a binary operation tree using NumPy structured array representation.
+    """Samples a binary operation tree using NumPy structured array representation.
 
     Starts with a single leaf node and iteratively replaces random leaf nodes with
     binary operations (which create two new leaf nodes) until the target number of
@@ -104,9 +102,7 @@ def sample_tree(
         )
 
     if node_noise_sampler is None:
-        node_noise_sampler = (
-            lambda node_type, op_or_input: 0.0
-        )  # Default: no noise  # noqa: E731
+        node_noise_sampler = lambda node_type, op_or_input: 0.0  # Default: no noise  # noqa: E731
 
     # Handle base case: single leaf
     if num_leaves == 1:
@@ -260,8 +256,7 @@ def evaluate_tree(
     node_idx: int = 0,
     normalize_output_after_noise: bool = False,
 ) -> torch.Tensor:
-    """
-    Evaluates a binary syntax tree on the given inputs.
+    """Evaluates a binary syntax tree on the given inputs.
     This function recursively calls itself to evaluate.
     This might be a bit slow, but at least it is batched
 

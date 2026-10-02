@@ -133,9 +133,7 @@ def get_batch(
     ys = []
     for x_ in x_for_mlp:  # iterating across batch size
         model.reset_parameters()
-        y = model(
-            x_[None].repeat(n_targets_per_input, 1, 1) / math.sqrt(num_features)
-        ).squeeze(-1)
+        y = model(x_[None].repeat(n_targets_per_input, 1, 1) / math.sqrt(num_features)).squeeze(-1)
         ys.append(y.T)
 
     y = torch.stack(ys, dim=1)

@@ -5,16 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from pfns.scripts.tabpfn_model_builder import load_model_only_inference
-
-from pfns.utils import (
-    NOP,
-    normalize_by_used_features_f,
-    normalize_data,
-    remove_outliers,
-)
 from sklearn.base import BaseEstimator, ClassifierMixin
-
 from sklearn.preprocessing import (
     LabelEncoder,
     PowerTransformer,
@@ -24,8 +15,15 @@ from sklearn.preprocessing import (
 from sklearn.utils import column_or_1d
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
-
 from torch.utils.checkpoint import checkpoint
+
+from pfns.scripts.tabpfn_model_builder import load_model_only_inference
+from pfns.utils import (
+    NOP,
+    normalize_by_used_features_f,
+    normalize_data,
+    remove_outliers,
+)
 
 
 def load_model_workflow(
@@ -37,8 +35,7 @@ def load_model_workflow(
     eval_addition="",
     only_inference=True,
 ):
-    """
-    Workflow for loading a model and setting appropriate parameters for diffable hparam tuning.
+    """Workflow for loading a model and setting appropriate parameters for diffable hparam tuning.
 
     :param i:
     :param e:
@@ -51,12 +48,8 @@ def load_model_workflow(
     """
 
     def get_file(e):
-        """
-        Returns the different paths of model_file, model_path and results_file
-        """
-        model_file = (
-            f"models_diff/prior_diff_real_checkpoint{add_name}_n_{i}_epoch_{e}.cpkt"
-        )
+        """Returns the different paths of model_file, model_path and results_file"""
+        model_file = f"models_diff/prior_diff_real_checkpoint{add_name}_n_{i}_epoch_{e}.cpkt"
         model_path = os.path.join(base_path, model_file)
         # print('Evaluate ', model_path)
         results_file = os.path.join(
@@ -135,8 +128,7 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         batch_size_inference=32,
         subsample_features=False,
     ):
-        """
-        Initializes the classifier and loads the model.
+        """Initializes the classifier and loads the model.
         Depending on the arguments, the model is either loaded from memory, from a file, or downloaded from the
         repository if no model is found.
 
@@ -168,7 +160,6 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         :param subsample_features: If set to true and the number of features in the dataset exceeds self.max_features (100),
                 the features are subsampled to self.max_features.
         """
-
         # Model file specification (Model name, Epoch)
         i = 0
         model_key = model_string + "|" + str(device)
@@ -214,9 +205,9 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         self.no_grad = no_grad
         self.subsample_features = subsample_features
 
-        assert (
-            self.no_preprocess_mode if not self.no_grad else True
-        ), "If no_grad is false, no_preprocess_mode must be true, because otherwise no gradient can be computed."
+        assert self.no_preprocess_mode if not self.no_grad else True, (
+            "If no_grad is false, no_preprocess_mode must be true, because otherwise no gradient can be computed."
+        )
 
         self.batch_size_inference = batch_size_inference
 
@@ -229,8 +220,7 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         cls, y = np.unique(y_, return_inverse=True)
         if len(cls) < 2:
             raise ValueError(
-                "The number of classes has to be greater than one; got %d class"
-                % len(cls)
+                "The number of classes has to be greater than one; got %d class" % len(cls)
             )
 
         self.classes_ = cls
@@ -238,8 +228,7 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         return np.asarray(y, dtype=np.float64, order="C")
 
     def fit(self, X, y, overwrite_warning=False):
-        """
-        Validates the training set and stores it.
+        """Validates the training set and stores it.
 
         If clf.no_grad (default is True):
         X, y should be of type np.array
@@ -283,8 +272,7 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict_proba(self, X, normalize_with_test=False, return_logits=False):
-        """
-        Predict the probabilities for the input X depending on the training set previously passed in the method fit.
+        """Predict the probabilities for the input X depending on the training set previously passed in the method fit.
 
         If no_grad is true in the classifier the function takes X as a numpy.ndarray. If no_grad is false X must be a
         torch tensor and is not fully checked.
@@ -299,8 +287,7 @@ class TabPFNClassifier(BaseEstimator, ClassifierMixin):
             X_full = torch.tensor(X_full, device=self.device).float().unsqueeze(1)
         else:
             assert torch.is_tensor(self.X_) & torch.is_tensor(X), (
-                "If no_grad is false, this function expects X as "
-                "a tensor to calculate a gradient"
+                "If no_grad is false, this function expects X as a tensor to calculate a gradient"
             )
             X_full = torch.cat((self.X_, X), dim=0).float().unsqueeze(1).to(self.device)
 
@@ -366,7 +353,7 @@ def transformer_predict(
     softmax_temperature=0.0,
     multiclass_decoder="permutation",
     preprocess_transform="mix",
-    categorical_feats=tuple(),
+    categorical_feats=(),
     feature_shift_decoder=False,
     N_ensemble_configurations=10,
     batch_size_inference=16,
@@ -379,9 +366,7 @@ def transformer_predict(
     return_logits=False,
     **kwargs,
 ):
-    """
-
-    :param model:
+    """:param model:
     :param eval_xs:
     :param eval_ys:
     :param eval_position:
@@ -409,17 +394,11 @@ def transformer_predict(
         # Initialize results array size S, B, Classes
 
         # no_grad disables inference_mode, because otherwise the gradients are lost
-        inference_mode_call = (
-            torch.inference_mode() if inference_mode and no_grad else NOP()
-        )
+        inference_mode_call = torch.inference_mode() if inference_mode and no_grad else NOP()
         with inference_mode_call:
             output = model(
                 (
-                    (
-                        used_style.repeat(eval_xs.shape[1], 1)
-                        if used_style is not None
-                        else None
-                    ),
+                    (used_style.repeat(eval_xs.shape[1], 1) if used_style is not None else None),
                     eval_xs,
                     eval_ys.float(),
                 ),
@@ -456,14 +435,9 @@ def transformer_predict(
         if preprocess_transform != "none":
             if preprocess_transform == "power" or preprocess_transform == "power_all":
                 pt = PowerTransformer(standardize=True)
-            elif (
-                preprocess_transform == "quantile"
-                or preprocess_transform == "quantile_all"
-            ):
+            elif preprocess_transform == "quantile" or preprocess_transform == "quantile_all":
                 pt = QuantileTransformer(output_distribution="normal")
-            elif (
-                preprocess_transform == "robust" or preprocess_transform == "robust_all"
-            ):
+            elif preprocess_transform == "robust" or preprocess_transform == "robust_all":
                 pt = RobustScaler(unit_variance=True)
 
         # eval_xs, eval_ys = normalize_data(eval_xs), normalize_data(eval_ys)
@@ -553,9 +527,7 @@ def transformer_predict(
             return "none"
 
     preprocess_transform_configurations = (
-        ["none", "power_all"]
-        if preprocess_transform == "mix"
-        else [preprocess_transform]
+        ["none", "power_all"] if preprocess_transform == "mix" else [preprocess_transform]
     )
 
     if seed is not None:
@@ -565,9 +537,7 @@ def transformer_predict(
         torch.randperm(eval_xs.shape[2]) if feature_shift_decoder else [0]
     )
     class_shift_configurations = (
-        torch.randperm(len(torch.unique(eval_ys)))
-        if multiclass_decoder == "permutation"
-        else [0]
+        torch.randperm(len(torch.unique(eval_ys))) if multiclass_decoder == "permutation" else [0]
     )
 
     ensemble_configurations = list(

@@ -8,7 +8,6 @@ from torch import nn
 
 from .prior import Batch
 
-
 length_scale_sampling_gp = 0.6
 
 
@@ -69,7 +68,7 @@ def evaluate(x, y, y_non_noisy, use_mse=False, length_scale=length_scale_samplin
 
 if __name__ == "__main__":
     ls = 0.1
-    for alpha in set([ls, ls * 1.1, ls * 0.9]):
+    for alpha in {ls, ls * 1.1, ls * 0.9}:
         print(alpha)
         for _redo_idx in range(1):
             print(

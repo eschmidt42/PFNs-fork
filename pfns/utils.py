@@ -8,7 +8,8 @@ import re
 
 import numpy as np
 import torch
-from torch import distributed as dist, nn
+from torch import distributed as dist
+from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 
 
@@ -73,11 +74,8 @@ def get_restarting_cosine_schedule_with_warmup(
 
 
 # copied from huggingface
-def get_linear_schedule_with_warmup(
-    optimizer, num_warmup_steps, num_training_steps, last_epoch=-1
-):
-    """
-    Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
+def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
+    """Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
     a warmup period during which it increases linearly from 0 to the initial lr set in the optimizer.
 
     Args:
@@ -125,8 +123,7 @@ class SeqBN(nn.Module):
 
 
 def set_locals_in_self(locals):
-    """
-    Call this function like `set_locals_in_self(locals())` to set all local variables as object variables.
+    """Call this function like `set_locals_in_self(locals())` to set all local variables as object variables.
     Especially useful right at the beginning of `__init__`.
     :param locals: `locals()`
     """
@@ -137,9 +134,7 @@ def set_locals_in_self(locals):
 
 
 def get_default_device():
-    """
-    Functional version of default_device, very helpful with submitit.
-    """
+    """Functional version of default_device, very helpful with submitit."""
     if torch.cuda.is_available():
         return f"cuda:{torch.cuda.current_device()}"
     elif torch.backends.mps.is_available():
@@ -155,9 +150,7 @@ default_device = get_default_device()
 class StoreDictKeyPair(argparse.Action):
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
         self._nargs = nargs
-        super(StoreDictKeyPair, self).__init__(
-            option_strings, dest, nargs=nargs, **kwargs
-        )
+        super(StoreDictKeyPair, self).__init__(option_strings, dest, nargs=nargs, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         my_dict = {}
@@ -210,9 +203,7 @@ def nan_handling_missing_for_a_reason_value(nan_prob=1.0):
 
 
 def torch_nanmean(x, axis=0, return_nanshare=False):
-    num = torch.where(torch.isnan(x), torch.full_like(x, 0), torch.full_like(x, 1)).sum(
-        axis=axis
-    )
+    num = torch.where(torch.isnan(x), torch.full_like(x, 0), torch.full_like(x, 1)).sum(axis=axis)
     value = torch.where(torch.isnan(x), torch.full_like(x, 0), x).sum(axis=axis)
     if return_nanshare:
         return value / num, 1.0 - num / x.shape[axis]
@@ -220,17 +211,11 @@ def torch_nanmean(x, axis=0, return_nanshare=False):
 
 
 def torch_nanstd(x, axis=0):
-    num = torch.where(torch.isnan(x), torch.full_like(x, 0), torch.full_like(x, 1)).sum(
-        axis=axis
-    )
+    num = torch.where(torch.isnan(x), torch.full_like(x, 0), torch.full_like(x, 1)).sum(axis=axis)
     value = torch.where(torch.isnan(x), torch.full_like(x, 0), x).sum(axis=axis)
     mean = value / num
-    mean_broadcast = torch.repeat_interleave(
-        mean.unsqueeze(axis), x.shape[axis], dim=axis
-    )
-    return torch.sqrt(
-        torch.nansum(torch.square(mean_broadcast - x), axis=axis) / (num - 1)
-    )
+    mean_broadcast = torch.repeat_interleave(mean.unsqueeze(axis), x.shape[axis], dim=axis)
+    return torch.sqrt(torch.nansum(torch.square(mean_broadcast - x), axis=axis) / (num - 1))
 
 
 def normalize_data(data, normalize_positions=-1, return_scaling=False):
@@ -277,11 +262,7 @@ def remove_outliers(X, n_sigma=4, normalize_positions=-1):
 
 
 def bool_mask_to_att_mask(mask):
-    return (
-        mask.float()
-        .masked_fill(mask == 0, float("-inf"))
-        .masked_fill(mask == 1, float(0.0))
-    )
+    return mask.float().masked_fill(mask == 0, float("-inf")).masked_fill(mask == 1, float(0.0))
 
 
 def print_on_master_only(is_master):
@@ -334,9 +315,7 @@ def init_dist(device):
         return True, rank, f"cuda:{rank}"
     elif "SLURM_PROCID" in os.environ and torch.cuda.device_count() > 1:
         # this is for multi gpu when starting with submitit
-        assert not device.startswith(
-            "cpu"
-        ), "Cannot use CPU for distributed training with SLURM"
+        assert not device.startswith("cpu"), "Cannot use CPU for distributed training with SLURM"
         rank = int(os.environ["SLURM_PROCID"])
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "12355"
@@ -376,9 +355,7 @@ class NOP:
 
 def check_compatibility(dl):
     if hasattr(dl, "num_outputs"):
-        print(
-            "`num_outputs` for the DataLoader is deprecated. It is assumed to be 1 from now on."
-        )
+        print("`num_outputs` for the DataLoader is deprecated. It is assumed to be 1 from now on.")
         assert dl.num_outputs != 1, (
             "We assume num_outputs to be 1. Instead of the num_ouputs change your loss."
             "We specify the number of classes in the CE loss."
@@ -408,9 +385,7 @@ def print_once(*msgs: str):
         printed_already.add(msg)
 
 
-def normalize_by_used_features_f(
-    x, num_features_used, num_features, normalize_with_sqrt=False
-):
+def normalize_by_used_features_f(x, num_features_used, num_features, normalize_with_sqrt=False):
     if normalize_with_sqrt:
         return x / (num_features_used / num_features) ** (1 / 2)
     return x / (num_features_used / num_features)
@@ -428,9 +403,7 @@ def get_all_times(j):
 def get_all_losses(j):
     if stdout := j.stdout():
         try:
-            return [
-                float(v) for v in re.findall(r"\|[ ]+mean loss[ ]+(\S+)[ ]+\|", stdout)
-            ]
+            return [float(v) for v in re.findall(r"\|[ ]+mean loss[ ]+(\S+)[ ]+\|", stdout)]
         except Exception as e:
             print("could not get losses from stdout, because of ", e)
             print(stdout)
@@ -442,9 +415,7 @@ def get_all_eval_losses(j):
     if stdout := j.stdout():
         try:
             # Find all epoch numbers and eval losses
-            matches = re.findall(
-                r"\| end of epoch\s+(\d+).*?\| eval mean loss[ ]+(\S+)", stdout
-            )
+            matches = re.findall(r"\| end of epoch\s+(\d+).*?\| eval mean loss[ ]+(\S+)", stdout)
             if matches:
                 # Split into two lists - epochs and losses
                 epochs, losses = zip(*matches)
@@ -462,16 +433,11 @@ def average_multiple_epochs(stdout, last_k=100):
 
 
 def window_average(lis, window_size=10):
-    return [
-        sum(lis[i - window_size : i]) / window_size
-        for i in range(window_size, len(lis))
-    ]
+    return [sum(lis[i - window_size : i]) / window_size for i in range(window_size, len(lis))]
 
 
 def tikzplotlib_fix_ncols(obj):
-    """
-    workaround for matplotlib 3.6 renamed legend's _ncol to _ncols, and (_us_dashOffset, _us_dashSeq) to _unscaled_dash_pattern
-    """
+    """Workaround for matplotlib 3.6 renamed legend's _ncol to _ncols, and (_us_dashOffset, _us_dashSeq) to _unscaled_dash_pattern"""
     if hasattr(obj, "_ncols"):
         obj._ncol = obj._ncols
     if hasattr(obj, "_unscaled_dash_pattern"):
@@ -487,8 +453,7 @@ def tikzplotlib_save(
     axis_height=r".9\textwidth",
     **tikzplotlib_kwargs,
 ):
-    """
-    This function can be used like `tikzplotlib.save` but adds a fix.
+    """This function can be used like `tikzplotlib.save` but adds a fix.
     :param path:
     :param axis_width:
     :param axis_height:

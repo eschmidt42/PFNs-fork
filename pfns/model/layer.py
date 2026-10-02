@@ -8,12 +8,12 @@ from functools import partial
 from typing import Any, ClassVar
 
 import torch
+from torch import nn
+from torch.nn.modules.transformer import Module, Tensor
 
 from pfns.model.layer_norm import LayerNorm
 from pfns.model.mlp import MLP
 from pfns.model.multi_head_attention import MultiHeadAttention
-from torch import nn
-from torch.nn.modules.transformer import Module, Tensor
 
 
 class PerFeatureLayer(Module):
@@ -55,35 +55,34 @@ class PerFeatureLayer(Module):
         positions_base: float = 0.02,
         dont_look_at_yourself: bool = False,
     ) -> None:
-        """
-        Args:
-            d_model: The dimensionality of the input and output embeddings.
-            nhead: The number of attention heads.
-            dim_feedforward:
-                The dimensionality of the feedforward network.
-                Default is None (2 * d_model).
-            activation: The activation function to use in the MLPs.
-            layer_norm_eps: The epsilon value for layer normalization.
-            device: The device to use for the layer parameters.
-            dtype: The data type to use for the layer parameters.
-            recompute_sublayers: Whether to recompute attention during backpropagation.
-            second_mlp: Whether to include a second MLP in the layer. `self.second_mlp` will be put between the first (between features) and second (between items) attention layers.
-            layer_norm_with_elementwise_affine:
-                Whether to use elementwise affine parameters in layer normalization.
-            zero_init: Whether to initialize the output of the MLPs to zero.
-            save_peak_mem_factor:
-                The factor to save peak memory, only effective with post-norm.
-            attention_between_features: Whether to apply attention between feature blocks.
-            multiquery_item_attention: Whether to use multiquery attention for items.
-            multiquery_item_attention_for_test_set:
-                Whether to use multiquery attention for the test set.
-            attention_init_gain: The gain value for initializing attention parameters.
-            d_k:
-                The dimensionality of the query and key vectors.
-                Default is (d_model // nhead).
-            d_v:
-                The dimensionality of the value vectors. Default is (d_model // nhead).
-            precomputed_kv: Precomputed key-value pairs for attention.
+        """Args:
+        d_model: The dimensionality of the input and output embeddings.
+        nhead: The number of attention heads.
+        dim_feedforward:
+            The dimensionality of the feedforward network.
+            Default is None (2 * d_model).
+        activation: The activation function to use in the MLPs.
+        layer_norm_eps: The epsilon value for layer normalization.
+        device: The device to use for the layer parameters.
+        dtype: The data type to use for the layer parameters.
+        recompute_sublayers: Whether to recompute attention during backpropagation.
+        second_mlp: Whether to include a second MLP in the layer. `self.second_mlp` will be put between the first (between features) and second (between items) attention layers.
+        layer_norm_with_elementwise_affine:
+            Whether to use elementwise affine parameters in layer normalization.
+        zero_init: Whether to initialize the output of the MLPs to zero.
+        save_peak_mem_factor:
+            The factor to save peak memory, only effective with post-norm.
+        attention_between_features: Whether to apply attention between feature blocks.
+        multiquery_item_attention: Whether to use multiquery attention for items.
+        multiquery_item_attention_for_test_set:
+            Whether to use multiquery attention for the test set.
+        attention_init_gain: The gain value for initializing attention parameters.
+        d_k:
+            The dimensionality of the query and key vectors.
+            Default is (d_model // nhead).
+        d_v:
+            The dimensionality of the value vectors. Default is (d_model // nhead).
+        precomputed_kv: Precomputed key-value pairs for attention.
         """
         super().__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -169,9 +168,9 @@ class PerFeatureLayer(Module):
 
         self.second_mlp: MLP | None = None
         if second_mlp:
-            assert (
-                attention_between_features
-            ), "`second_mlp` requires `attention_between_features` to be enabled."
+            assert attention_between_features, (
+                "`second_mlp` requires `attention_between_features` to be enabled."
+            )
             self.second_mlp = MLP(
                 size=d_model,
                 hidden_size=dim_feedforward,
@@ -184,9 +183,7 @@ class PerFeatureLayer(Module):
 
         self.recompute_attn = recompute_sublayers
         self.save_peak_mem_factor = save_peak_mem_factor
-        self.multiquery_item_attention_for_test_set = (
-            multiquery_item_attention_for_test_set
-        )
+        self.multiquery_item_attention_for_test_set = multiquery_item_attention_for_test_set
         self.attention_across_items_first = attention_across_items_first
 
     def __setstate__(self, state: dict[str, Any]) -> None:
@@ -201,8 +198,7 @@ class PerFeatureLayer(Module):
         cache_trainset_representation: bool = False,
         att_src: Tensor | None = None,
         rope_vals: torch.Tensor | None = None,
-        positions: torch.Tensor
-        | None = None,  # shape: [batch, seqlen_q, num_feature_blocks, 1]
+        positions: torch.Tensor | None = None,  # shape: [batch, seqlen_q, num_feature_blocks, 1]
     ) -> Tensor:
         """Pass the input through the encoder layer.
 
@@ -228,29 +224,30 @@ class PerFeatureLayer(Module):
         Returns:
             The transformer state passed through the encoder layer.
         """
-        assert (
-            len(state.shape) == 4
-        ), "src must be of shape (batch_size, num_items, num feature blocks, d_model)"
+        assert len(state.shape) == 4, (
+            "src must be of shape (batch_size, num_items, num feature blocks, d_model)"
+        )
         if single_eval_pos is None:
             single_eval_pos = 0
 
         save_peak_mem_factor = self.save_peak_mem_factor
         if cache_trainset_representation and not single_eval_pos:
-            assert self.self_attn_between_items.has_cached_kv, "To use the cache, you must first fill it. See the `cache_trainset_representation` argument docstring."
+            assert self.self_attn_between_items.has_cached_kv, (
+                "To use the cache, you must first fill it. See the `cache_trainset_representation` argument docstring."
+            )
             save_peak_mem_factor = None
 
         if att_src is not None:
-            assert (
-                not self.multiquery_item_attention_for_test_set
-            ), "Not implemented yet."
+            assert not self.multiquery_item_attention_for_test_set, "Not implemented yet."
             assert not cache_trainset_representation, "Not implemented yet."
             assert not single_eval_pos, (
-                "single_eval_pos should not be set, as the train representation"
-                " is in att_src"
+                "single_eval_pos should not be set, as the train representation is in att_src"
             )
 
         if self.self_attn_between_features is None:
-            assert not cache_trainset_representation, "`cache_trainset_representation` is not supported without `attention_between_features`. It should be easy to implement, but we didn't need it yet."
+            assert not cache_trainset_representation, (
+                "`cache_trainset_representation` is not supported without `attention_between_features`. It should be easy to implement, but we didn't need it yet."
+            )
             assert state.shape[2] == 1, (
                 f"One group architecture expects one feature group, "
                 f"but got {state.shape[2]} feature groups."
@@ -266,9 +263,7 @@ class PerFeatureLayer(Module):
             )
 
         def attn_between_items(x: torch.Tensor) -> torch.Tensor:
-            transposed_rope_vals = (
-                rope_vals.transpose(1, 2) if rope_vals is not None else None
-            )
+            transposed_rope_vals = rope_vals.transpose(1, 2) if rope_vals is not None else None
             # we need to transpose as self attention always treats
             # dim -2 as the sequence dimension
             if self.multiquery_item_attention_for_test_set:
@@ -278,11 +273,7 @@ class PerFeatureLayer(Module):
                 if single_eval_pos < x.shape[1]:
                     new_x_test = self.self_attn_between_items(
                         x[:, single_eval_pos:].transpose(1, 2),
-                        (
-                            x[:, :single_eval_pos].transpose(1, 2)
-                            if single_eval_pos
-                            else None
-                        ),
+                        (x[:, :single_eval_pos].transpose(1, 2) if single_eval_pos else None),
                         save_peak_mem_factor=save_peak_mem_factor,
                         cache_kv=False,
                         add_input=True,
@@ -347,8 +338,7 @@ class PerFeatureLayer(Module):
             sublayers.append(attn_between_features)
         else:
             assert state.shape[2] == 1, (
-                "If there is no attention between features, the number of feature"
-                " blocks must be 1."
+                "If there is no attention between features, the number of feature blocks must be 1."
             )
 
         if self.attention_across_items_first:

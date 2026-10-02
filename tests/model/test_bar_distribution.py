@@ -1,14 +1,12 @@
 import torch
-from pfns.model import bar_distribution
-
 from pytest import approx
+
+from pfns.model import bar_distribution
 
 
 def test_cdf_out_of_bounds():
     logits = torch.tensor([0.05, 0.05, 0.1, 0.3, 0.5]).log()
-    d = bar_distribution.BarDistribution(
-        borders=torch.tensor([0.0, 1.0, 2.0, 2.5, 4.0, 6.0])
-    )
+    d = bar_distribution.BarDistribution(borders=torch.tensor([0.0, 1.0, 2.0, 2.5, 4.0, 6.0]))
 
     # outside range
     assert d.cdf(logits, torch.tensor([-1.0]))[0].item() == approx(0.0)
@@ -51,9 +49,7 @@ def test_average_bar_distributions_into_different_one():
     assert new_d.cdf(new_logits, torch.tensor([3.0])).item() == approx(1.0)
 
     new_small_d = bar_distribution.BarDistribution(borders=torch.linspace(-1, 2, 10))
-    new_small_logits = new_small_d.average_bar_distributions_into_this(
-        bar_dists, logits
-    )
+    new_small_logits = new_small_d.average_bar_distributions_into_this(bar_dists, logits)
 
     assert new_small_d.cdf(new_small_logits, torch.tensor([-1.0])).item() == approx(0.0)
     assert new_small_d.cdf(new_small_logits, torch.tensor([0.0])).item() == approx(0.25)
@@ -87,9 +83,7 @@ def test_entropy_full_support():
     H_components = torch.tensor(
         [
             left_hn.entropy(),
-            torch.log(
-                d.bucket_widths[1]
-            ),  # no negation needed as bucket_widths = 1/prob
+            torch.log(d.bucket_widths[1]),  # no negation needed as bucket_widths = 1/prob
             right_hn.entropy(),
         ]
     )

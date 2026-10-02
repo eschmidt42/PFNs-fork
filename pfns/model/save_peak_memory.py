@@ -40,19 +40,18 @@ def support_save_peak_mem_factor(method: MethodType) -> Callable:
         save_peak_mem_factor: int | None = None,
         **kwargs: Any,
     ) -> torch.Tensor:
-        """
-        Args:
-            x: The input tensor, over which we want to go sequentially in 0th dimension.
-            *args: Additional arguments of the wrapped function.
-            add_input: Whether to add the input to the result, to get a residual connection.
-            allow_inplace: Whether to allow inplace operations.
-            save_peak_mem_factor: The number of chunks to split the input into.
-            **kwargs: Additional keyword arguments of the wrapped function.
+        """Args:
+        x: The input tensor, over which we want to go sequentially in 0th dimension.
+        *args: Additional arguments of the wrapped function.
+        add_input: Whether to add the input to the result, to get a residual connection.
+        allow_inplace: Whether to allow inplace operations.
+        save_peak_mem_factor: The number of chunks to split the input into.
+        **kwargs: Additional keyword arguments of the wrapped function.
         """
         assert isinstance(self, torch.nn.Module)
-        assert (
-            save_peak_mem_factor is None or allow_inplace
-        ), "The parameter save_peak_mem_factor only supported with 'allow_inplace' set."
+        assert save_peak_mem_factor is None or allow_inplace, (
+            "The parameter save_peak_mem_factor only supported with 'allow_inplace' set."
+        )
         assert isinstance(x, torch.Tensor)
 
         tensor_inputs = list(tuple(self.parameters()) + tuple(args))

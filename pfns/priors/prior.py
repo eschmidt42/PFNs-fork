@@ -6,9 +6,9 @@ from functools import partial
 from typing import Callable, ClassVar, Optional, Set
 
 import torch
+from torch.utils.data import DataLoader
 
 from pfns.base_config import BaseConfig
-from torch.utils.data import DataLoader
 
 
 class PriorConfig(BaseConfig, metaclass=ABCMeta):
@@ -32,9 +32,9 @@ class AdhocPriorConfig(PriorConfig):
         # Local import to avoid circular import
         from pfns.priors import get_batch_sequence
 
-        assert (
-            (self.prior_names is None) != (self.get_batch_methods is None)
-        ), f"Either prior_name or get_batch_method must be provided, got prior_names={self.prior_names} and get_batch_methods={self.get_batch_methods}"
+        assert (self.prior_names is None) != (self.get_batch_methods is None), (
+            f"Either prior_name or get_batch_method must be provided, got prior_names={self.prior_names} and get_batch_methods={self.get_batch_methods}"
+        )
 
         if self.prior_names is not None:
             get_batch_methods = []
@@ -65,8 +65,7 @@ class AdhocPriorConfig(PriorConfig):
 
 @dataclass
 class Batch:
-    """
-    A batch of data, with non-optional x, y, and target_y attributes.
+    """A batch of data, with non-optional x, y, and target_y attributes.
     All other attributes are optional.
 
     If you want to add an attribute for testing only, you can just assign it after creation like:
@@ -120,9 +119,7 @@ class PriorDataLoader(DataLoader, metaclass=ABCMeta):
         device,
         **kwargs,
     ):
-        """
-
-        :param num_steps: int, first argument, the number of steps to take per epoch, i.e. iteration of the DataLoader
+        """:param num_steps: int, first argument, the number of steps to take per epoch, i.e. iteration of the DataLoader
         :param batch_size: int, number of datasets per batch
         :param eval_pos_seq_len_sampler: callable, it takes no arguments and returns a tuple (single eval pos, bptt)
         :param kwargs: for future compatibility it is good to have a final all catch, as new kwargs might be introduced

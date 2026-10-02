@@ -7,13 +7,14 @@ from typing import Any
 
 import numpy as np
 import torch
+from torch import nn
+
 from pfns import base_config
 from pfns.model import encoders
 from pfns.priors.hyperparameter_sampling import (
     DistributionConfig,
     HyperparameterNormalizer,
 )
-from torch import nn
 
 ### Simple Encoders
 
@@ -57,10 +58,7 @@ class EncoderConfig(base_config.BaseConfig):
     def __post_init__(self):
         assert not (
             self.train_normalization
-            and (
-                self.constant_normalization_mean != 0.0
-                or self.constant_normalization_std != 1.0
-            )
+            and (self.constant_normalization_mean != 0.0 or self.constant_normalization_std != 1.0)
         )
         return super().__post_init__()
 
@@ -146,9 +144,9 @@ def linear_style_encoder(num_styles, emsize):
 @dataclass(frozen=True)
 class StyleEncoderConfig(base_config.BaseConfig):
     num_styles: int | None = None
-    normalize_to_hyperparameters: (
-        dict[str, base_config.BaseTypes | DistributionConfig] | None
-    ) = None
+    normalize_to_hyperparameters: dict[str, base_config.BaseTypes | DistributionConfig] | None = (
+        None
+    )
     encoder_type: str = "linear"
     constant_normalization_mean: float = 0.0
     constant_normalization_std: float = 1.0
@@ -167,9 +165,9 @@ class StyleEncoderConfig(base_config.BaseConfig):
         modules = []
 
         if self.normalize_to_hyperparameters is not None:
-            assert (
-                self.num_styles is None
-            ), "num_styles must be None if normalize_to_hyperparameters is given"
+            assert self.num_styles is None, (
+                "num_styles must be None if normalize_to_hyperparameters is given"
+            )
             hpn = HyperparameterNormalizer(self.normalize_to_hyperparameters)
             num_features = hpn.num_hps * 2
             modules.append(hpn)
@@ -190,9 +188,7 @@ class StyleEncoderConfig(base_config.BaseConfig):
             modules.append(nn.Flatten())
             return nn.Sequential(*modules)
         else:
-            raise ValueError(
-                f"Style encoder generator {self.encoder_type} not supported"
-            )
+            raise ValueError(f"Style encoder generator {self.encoder_type} not supported")
 
 
 # Custom Encoders
@@ -219,9 +215,7 @@ class SequentialEncoder(nn.Sequential):
         super().__init__(*args, **kwargs)
         self.output_key = output_key
 
-    def forward(
-        self, input: dict[str, torch.Tensor] | torch.Tensor, **kwargs: Any
-    ) -> torch.Tensor:
+    def forward(self, input: dict[str, torch.Tensor] | torch.Tensor, **kwargs: Any) -> torch.Tensor:
         """Apply the sequence of encoder steps to the input.
 
         Args:
@@ -236,9 +230,9 @@ class SequentialEncoder(nn.Sequential):
         """
         # If the input is not a dict, we assume it is the main input and wrap it in a dict
         if not isinstance(input, dict):
-            assert (
-                len(self[0].in_keys) == 1 and self[0].in_keys[0] == "main"
-            ), "The first encoder step must expect a single input key 'main', if the input is not a dict"
+            assert len(self[0].in_keys) == 1 and self[0].in_keys[0] == "main", (
+                "The first encoder step must expect a single input key 'main', if the input is not a dict"
+            )
             input = {"main": input}
 
         for module in self:
@@ -394,9 +388,7 @@ class LinearInputEncoderStep(SeqEncStep):
             if activation_on_inputs == "gelu":
                 self.activation = nn.GELU()
             else:
-                raise ValueError(
-                    f"Activation {self.activation_on_inputs} not supported"
-                )
+                raise ValueError(f"Activation {self.activation_on_inputs} not supported")
 
     def _fit(self, *x: torch.Tensor, **kwargs: Any):
         """Fit the encoder step. Does nothing for LinearInputEncoderStep."""
@@ -421,9 +413,7 @@ class LinearInputEncoderStep(SeqEncStep):
 
 
 class ConstantNormalizationInputEncoderStep(SeqEncStep):
-    """
-    An encoder step that subtracts all inputs by a constant mean and divides by a constant standard deviation.
-    """
+    """An encoder step that subtracts all inputs by a constant mean and divides by a constant standard deviation."""
 
     def __init__(
         self,
@@ -697,9 +687,7 @@ class InputNormalizationEncoderStep(SeqEncStep):
         normalize_position = single_eval_pos if self.normalize_on_train_only else -1
 
         if self.remove_outliers:
-            assert (
-                self.remove_outliers_sigma > 1.0
-            ), "remove_outliers_sigma must be > 1.0"
+            assert self.remove_outliers_sigma > 1.0, "remove_outliers_sigma must be > 1.0"
 
             x, _ = remove_outliers(
                 x,
@@ -793,9 +781,7 @@ def normalize_data(
     """
     # TODO(eddiebergman): I feel like this function is easier to just do what you need
     # where you need it, rather than supporting all these variations
-    assert (mean is None) == (
-        std is None
-    ), "Either both or none of mean and std must be given"
+    assert (mean is None) == (std is None), "Either both or none of mean and std must be given"
     if mean is None:
         if normalize_positions is not None and normalize_positions > 0:
             mean = torch_nanmean(data[:normalize_positions], axis=0)  # type: ignore

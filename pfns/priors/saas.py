@@ -29,9 +29,7 @@ def get_batch(
             num_cluster_max=hyperparameters.get("num_cluster_max", 1),
             max_std=hyperparameters.get("max_std", 0.25),
         )
-    elif sample_clustered_x_hp and sample_clustered_x_hp.startswith(
-        "around_train_point_binp_"
-    ):
+    elif sample_clustered_x_hp and sample_clustered_x_hp.startswith("around_train_point_binp_"):
         binary_prob = float(sample_clustered_x_hp.split("_")[-1])
         x = sample_around_train_point(
             batch_size,
@@ -97,9 +95,7 @@ def get_batch(
         )
 
     # Set ys to nan in training set
-    number_of_y_hidden = torch.randint(
-        0, hyperparameters.get("max_num_hidden_y", 0) + 1, tuple()
-    )
+    number_of_y_hidden = torch.randint(0, hyperparameters.get("max_num_hidden_y", 0) + 1, ())
     noisy_y[:, single_eval_pos - number_of_y_hidden : single_eval_pos] = torch.nan
 
     return Batch(x=x, y=noisy_y, target_y=target_y)

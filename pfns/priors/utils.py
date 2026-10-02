@@ -8,7 +8,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as stats
-
 import torch
 import torch.utils.data  # Added for get_worker_info
 from torch import nn
@@ -17,8 +16,8 @@ from ..utils import normalize_data
 
 # only for pickle backwards compatibility
 from .data_loading import (  # noqa: F401
-    _BatchedIterableDataset,
     StandardDataLoader,
+    _BatchedIterableDataset,
     worker_init_fn,
 )
 from .prior import Batch
@@ -96,9 +95,9 @@ def plot_prior(prior, samples=1000, buckets=50):
 
 def trunc_norm_sampler_f(mu, sigma):
     def sampler():
-        return stats.truncnorm(
-            (0 - mu) / sigma, (1000000 - mu) / sigma, loc=mu, scale=sigma
-        ).rvs(1)[0]
+        return stats.truncnorm((0 - mu) / sigma, (1000000 - mu) / sigma, loc=mu, scale=sigma).rvs(
+            1
+        )[0]
 
     return sampler
 
@@ -145,9 +144,7 @@ def scaled_beta_sampler_f(a, b, scale, minimum):
     return sampler
 
 
-def normalize_by_used_features_f(
-    x, num_features_used, num_features, normalize_with_sqrt=False
-):
+def normalize_by_used_features_f(x, num_features_used, num_features, normalize_with_sqrt=False):
     if normalize_with_sqrt:
         return x / (num_features_used / num_features) ** (1 / 2)
     return x / (num_features_used / num_features)
@@ -156,9 +153,7 @@ def normalize_by_used_features_f(
 def order_by_y(x, y):
     order = torch.argsort(y if random.randint(0, 1) else -y, dim=0)[:, 0, 0]
     order = order.reshape(2, -1).transpose(0, 1).reshape(-1)  # .reshape(seq_len)
-    x = x[
-        order
-    ]  # .reshape(2, -1).transpose(0, 1).reshape(-1).flip([0]).reshape(seq_len, 1, -1)
+    x = x[order]  # .reshape(2, -1).transpose(0, 1).reshape(-1).flip([0]).reshape(seq_len, 1, -1)
     y = y[order]  # .reshape(2, -1).transpose(0, 1).reshape(-1).reshape(seq_len, 1, -1)
 
     return x, y
@@ -195,9 +190,7 @@ class CategoricalActivation(nn.Module):
         x = nn.Softsign()(x)
 
         num_classes = self.num_classes_sampler()
-        hid_strength = (
-            torch.abs(x).mean(0).unsqueeze(0) if self.keep_activation_size else None
-        )
+        hid_strength = torch.abs(x).mean(0).unsqueeze(0) if self.keep_activation_size else None
 
         categorical_classes = torch.rand((x.shape[1], x.shape[2])) < self.categorical_p
         class_boundaries = torch.zeros(
@@ -294,8 +287,7 @@ def lambda_time(f, name="", enabled=True):
 
 
 def pretty_get_batch(get_batch):
-    """
-    Genereate string representation of get_batch function
+    """Genereate string representation of get_batch function
     :param get_batch:
     :return:
     """
@@ -305,9 +297,8 @@ def pretty_get_batch(get_batch):
         return repr(get_batch)
 
 
-class get_batch_sequence(list):
-    """
-    This will call the get_batch_methods in order from the back and pass the previous as `get_batch` kwarg.
+class get_batch_sequence(list):  # noqa: N801
+    """This will call the get_batch_methods in order from the back and pass the previous as `get_batch` kwarg.
     For example for `get_batch_methods=[get_batch_1, get_batch_2, get_batch_3]` this will produce a call
     equivalent to `get_batch_3(*args,get_batch=partial(partial(get_batch_2),get_batch=get_batch_1,**kwargs))`.
     get_batch_methods: all priors, but the first, muste have a `get_batch` argument
@@ -323,9 +314,7 @@ class get_batch_sequence(list):
         return f"get_batch_sequence(\n\t{s}\n)"
 
     def __call__(self, *args, **kwargs):
-        """
-
-        Standard kwargs are: batch_size, seq_len, num_features
+        """Standard kwargs are: batch_size, seq_len, num_features
         This returns a priors.Batch object.
         """
         final_get_batch = self[0]

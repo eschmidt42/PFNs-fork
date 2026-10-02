@@ -5,7 +5,6 @@ from functools import partial
 import numpy as np
 import scipy
 import torch
-
 from botorch.optim import module_to_array, set_params_with_array
 from gpytorch.priors import LogNormalPrior
 from scipy.optimize import Bounds
@@ -25,9 +24,7 @@ def fit_lbfgs(x, w, nll, num_grad_steps=10, ignore_prior=True, params0=None):
                     constraint.lower_bound,
                     constraint.upper_bound,
                 )
-    params0_, property_dict, bounds_ = module_to_array(
-        module=w, bounds=bounds_, exclude=None
-    )
+    params0_, property_dict, bounds_ = module_to_array(module=w, bounds=bounds_, exclude=None)
     if params0 is None:
         params0 = params0_
     bounds = Bounds(lb=bounds_[0], ub=bounds_[1], keep_feasible=True)
@@ -88,9 +85,7 @@ def log_vs_nonlog(x, w, *args, **kwargs):
     params, property_dict, _ = module_to_array(module=w)
     no_log = np.ones_like(params)
     log = np.array([1.9, 0.11] * (int(len(property_dict) / 2)))
-    loss_no_log = fit_lbfgs(
-        x, w, *args, **{**kwargs, "num_grad_steps": 0}, params0=no_log
-    )
+    loss_no_log = fit_lbfgs(x, w, *args, **{**kwargs, "num_grad_steps": 0}, params0=no_log)
     loss_log = fit_lbfgs(x, w, *args, **{**kwargs, "num_grad_steps": 0}, params0=log)
     print("loss no log", loss_no_log[0][1], "loss log", loss_log[0][1])
     if loss_no_log[0][1] < loss_log[0][1]:
@@ -117,9 +112,7 @@ def fit_lbfgs_with_restarts(x, w, *args, old_solution=None, rs_size=50, **kwargs
         true_nll = None
     rs_results = []
     if old_solution:
-        rs_results.append(
-            fit_lbfgs(x, old_solution, *args, **{**kwargs, "num_grad_steps": 0})
-        )
+        rs_results.append(fit_lbfgs(x, old_solution, *args, **{**kwargs, "num_grad_steps": 0}))
     for _i in range(rs_size):
         with torch.no_grad():
             w.concentration0[:] = w.concentration0_prior()
@@ -151,9 +144,7 @@ random.setstate(old_seed)
 # use seed 0 for sampling subsets
 old_seed = random.getstate()
 random.seed(0)
-subsets = [None] + [
-    [random.sample(range(i), i // 2) for _ in range(10)] for i in range(1, 100)
-]
+subsets = [None] + [[random.sample(range(i), i // 2) for _ in range(10)] for i in range(1, 100)]
 neg_subsets = [None] + [
     [list(set(range(i)) - set(s)) for s in ss] for i, ss in enumerate(subsets[1:], 1)
 ]
@@ -169,9 +160,7 @@ def fit_input_warping(
     opt_method="lbfgs",
     **kwargs,
 ):
-    """
-
-    :param model:
+    """:param model:
     :param x: shape (n, d)
     :param y: shape (n, 1)
     :param nll_type:
@@ -215,9 +204,9 @@ def fit_input_warping(
         return loss
 
     def true_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "true nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "true nll not implemented for style encoder, see above for an example impl"
+        )
         model.requires_grad_(False)
         total_nll = 0.0
         for cutoff in range(len(x)):
@@ -226,17 +215,14 @@ def fit_input_warping(
                 y[:cutoff, None],
                 x[cutoff : cutoff + 1, None],
             )
-            total_nll = (
-                total_nll
-                + model.criterion(logits, y[cutoff : cutoff + 1, None]).squeeze()
-            )
+            total_nll = total_nll + model.criterion(logits, y[cutoff : cutoff + 1, None]).squeeze()
         assert len(total_nll.shape) == 0, f"{total_nll.shape=}"
         return total_nll
 
     def repeated_true_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "true nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "true nll not implemented for style encoder, see above for an example impl"
+        )
         model.requires_grad_(False)
         total_nll = 0.0
         for i in range(5):
@@ -251,16 +237,15 @@ def fit_input_warping(
                     x_[cutoff : cutoff + 1, None],
                 )
                 total_nll = (
-                    total_nll
-                    + model.criterion(logits, y_[cutoff : cutoff + 1, None]).squeeze()
+                    total_nll + model.criterion(logits, y_[cutoff : cutoff + 1, None]).squeeze()
                 )
         assert len(total_nll.shape) == 0, f"{total_nll.shape=}"
         return total_nll
 
     def repeated_true_100_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "true nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "true nll not implemented for style encoder, see above for an example impl"
+        )
         model.requires_grad_(False)
         total_nll = 0.0
         for i in range(100):
@@ -275,16 +260,15 @@ def fit_input_warping(
                     x_[cutoff : cutoff + 1, None],
                 )
                 total_nll = (
-                    total_nll
-                    + model.criterion(logits, y_[cutoff : cutoff + 1, None]).squeeze()
+                    total_nll + model.criterion(logits, y_[cutoff : cutoff + 1, None]).squeeze()
                 )
         assert len(total_nll.shape) == 0, f"{total_nll.shape=}"
         return total_nll / 100
 
     def batched_repeated_chunked_true_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "true nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "true nll not implemented for style encoder, see above for an example impl"
+        )
         assert len(x.shape) == 2 and len(y.shape) == 1
         model.requires_grad_(False)
         n_features = x.shape[1] if len(x.shape) > 1 else 1
@@ -305,7 +289,7 @@ def fit_input_warping(
         Y = torch.stack(Y, dim=1).view((x.shape[0], batch_size, 1))
 
         total_nll = 0.0
-        batch_indizes = sorted(list(set(np.linspace(0, len(x), 10, dtype=int))))
+        batch_indizes = sorted(set(np.linspace(0, len(x), 10, dtype=int)))
 
         for chunk_start, chunk_end in zip(batch_indizes[:-1], batch_indizes[1:]):
             X_cutoff = X[:chunk_start]
@@ -319,9 +303,7 @@ def fit_input_warping(
             observed_x = X_cutoff.reshape(
                 X_cutoff.shape[0], batch_size, n_features
             )  # n_obs x batch_size x n_feat
-            X_tmp = torch.cat(
-                (observed_x, pending_x), dim=0
-            )  # (n_obs+n_pen) x batch_size x n_feat
+            X_tmp = torch.cat((observed_x, pending_x), dim=0)  # (n_obs+n_pen) x batch_size x n_feat
 
             logits = model((X_tmp, Y_cutoff), single_eval_pos=int(chunk_start))
             total_nll = total_nll + model.criterion(logits, Y_after_cutoff).sum()
@@ -329,9 +311,9 @@ def fit_input_warping(
         return total_nll
 
     def batched_repeated_true_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "true nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "true nll not implemented for style encoder, see above for an example impl"
+        )
         model.requires_grad_(False)
         n_features = x.shape[1] if len(x.shape) > 1 else 1
         batch_size = 10
@@ -364,9 +346,7 @@ def fit_input_warping(
             observed_x = X_cutoff.reshape(
                 X_cutoff.shape[0], batch_size, n_features
             )  # n_obs x batch_size x n_feat
-            X_tmp = torch.cat(
-                (observed_x, pending_x), dim=0
-            )  # (n_obs+n_pen) x batch_size x n_feat
+            X_tmp = torch.cat((observed_x, pending_x), dim=0)  # (n_obs+n_pen) x batch_size x n_feat
 
             pad_y = torch.zeros(
                 (X_after_cutoff.shape[0], batch_size, 1)
@@ -379,9 +359,9 @@ def fit_input_warping(
         return total_nll
 
     def one_out_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "one out nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "one out nll not implemented for style encoder, see above for an example impl"
+        )
         # x shape: (n, d)
         # iterate over a pre-defined set of
         model.requires_grad_(False)
@@ -399,9 +379,9 @@ def fit_input_warping(
         return model.criterion(logits, eval_y).squeeze(0)
 
     def subset_nll(x):  # noqa actually used with `eval` below
-        assert (
-            model.style_encoder is None
-        ), "subset nll not implemented for style encoder, see above for an example impl"
+        assert model.style_encoder is None, (
+            "subset nll not implemented for style encoder, see above for an example impl"
+        )
         # x shape: (n, d)
         # iterate over a pre-defined set of
         model.requires_grad_(False)
@@ -409,12 +389,8 @@ def fit_input_warping(
         train_indices = torch.tensor(neg_subsets[len(x)])
 
         # batch by using all eval_indices
-        eval_x = x[eval_indices.flatten()].view(
-            eval_indices.shape + (-1,)
-        )  # shape (10, n//2, d)
-        eval_y = y[eval_indices.flatten()].view(
-            eval_indices.shape + (-1,)
-        )  # shape (10, n//2, 1)
+        eval_x = x[eval_indices.flatten()].view(eval_indices.shape + (-1,))  # shape (10, n//2, d)
+        eval_y = y[eval_indices.flatten()].view(eval_indices.shape + (-1,))  # shape (10, n//2, 1)
         # all other indices are used for training
         train_x = x[train_indices.flatten()].view(
             train_indices.shape + (-1,)

@@ -8,11 +8,12 @@ from typing import Callable, Iterator
 import numpy as np
 import torch
 import torch.distributed as dist
+from torch.utils.data import DataLoader, IterableDataset
+from typing_extensions import override
+
 from pfns.batch_shape_sampler import BatchShape
 from pfns.priors.prior import Batch
 from pfns.utils import set_locals_in_self
-from torch.utils.data import DataLoader, IterableDataset
-from typing_extensions import override
 
 
 def worker_init_fn(worker_id: int, epoch: int):
@@ -85,9 +86,9 @@ class _BatchedIterableDataset(IterableDataset[Batch]):
             b = self.get_batch_method(**kwargs)
 
             if b.y is not None:
-                assert (
-                    len(b.x) == len(b.y) == len(b.target_y) == batch_shape.batch_size
-                ), "Our code was updated to use the more intuitive batch first format, please make sure your get_batch function returns data with shapes (batch_size, seq_len, ...)"
+                assert len(b.x) == len(b.y) == len(b.target_y) == batch_shape.batch_size, (
+                    "Our code was updated to use the more intuitive batch first format, please make sure your get_batch function returns data with shapes (batch_size, seq_len, ...)"
+                )
 
             # Ensure single_eval_pos is set on the batch object if get_batch_method doesn't handle it
             if b.single_eval_pos is None:
@@ -143,9 +144,7 @@ class StandardDataLoader(DataLoader):
         return self.num_steps
 
     def __iter__(self):
-        assert hasattr(
-            self, "model"
-        ), "Please assign model with `dl.model = ...` before training."
+        assert hasattr(self, "model"), "Please assign model with `dl.model = ...` before training."
         self.epoch_count += 1
         self.worker_init_fn = partial(worker_init_fn, epoch=self.epoch_count)
         # The iteration logic is now handled by _BatchedIterableDataset passed to super().__init__
@@ -192,9 +191,7 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
         return batch
 
     def __iter__(self):
-        assert hasattr(
-            self, "model"
-        ), "Please assign model with `dl.model = ...` before training."
+        assert hasattr(self, "model"), "Please assign model with `dl.model = ...` before training."
         if self.epoch_count > 0:
             # did an iter before
             assert self.importance_sampling_infos is not None
@@ -207,9 +204,9 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                 # Calculate current epoch's average loss per option
                 current_epoch_losses = {}
                 for _, option_idx, loss, *_ in self.importance_sampling_infos:
-                    assert (
-                        0 <= option_idx < len(self.importance_hyperparameter_options)
-                    ), f"Option index {option_idx} is out of bounds for hyperparameter options {self.importance_hyperparameter_options}"
+                    assert 0 <= option_idx < len(self.importance_hyperparameter_options), (
+                        f"Option index {option_idx} is out of bounds for hyperparameter options {self.importance_hyperparameter_options}"
+                    )
                     if option_idx not in current_epoch_losses:
                         current_epoch_losses[option_idx] = []
                     current_epoch_losses[option_idx].append(loss)
@@ -220,24 +217,20 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
 
                 # Average the losses for each option in the current epoch
                 for option_idx in current_epoch_losses:
-                    current_epoch_option_counts[option_idx] = len(
-                        current_epoch_losses[option_idx]
-                    )
+                    current_epoch_option_counts[option_idx] = len(current_epoch_losses[option_idx])
                     current_epoch_losses[option_idx] = (
                         torch.tensor(current_epoch_losses[option_idx]).mean().item()
                     )
 
                 if not hasattr(self, "previous_epoch_losses"):
-                    probs = torch.ones(
-                        len(self.importance_hyperparameter_options)
-                    ) / len(self.importance_hyperparameter_options)
+                    probs = torch.ones(len(self.importance_hyperparameter_options)) / len(
+                        self.importance_hyperparameter_options
+                    )
                 else:
                     print("current_epoch_losses", current_epoch_losses)
 
                     # Calculate improvements compared to previous epoch
-                    improvements = torch.zeros(
-                        len(self.importance_hyperparameter_options)
-                    )
+                    improvements = torch.zeros(len(self.importance_hyperparameter_options))
                     for (
                         option_idx,
                         current_loss,
@@ -246,14 +239,12 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                             if self.multiplicative_loss_improvement:
                                 # Calculate geometric mean of improvement per step
                                 improvements[option_idx] = (
-                                    current_loss
-                                    / self.previous_epoch_losses[option_idx]
+                                    current_loss / self.previous_epoch_losses[option_idx]
                                 )
                             else:
                                 # Original additive improvement
                                 improvements[option_idx] = (
-                                    self.previous_epoch_losses[option_idx]
-                                    - current_loss
+                                    self.previous_epoch_losses[option_idx] - current_loss
                                 )
 
                     print("improvements", improvements)
@@ -268,13 +259,10 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                             expected_losses = torch.tensor(
                                 [
                                     [
-                                        improvement_ratios[i] ** steps
-                                        * current_epoch_losses[i]
+                                        improvement_ratios[i] ** steps * current_epoch_losses[i]
                                         for steps in range(self.num_steps + 1)
                                     ]
-                                    for i in range(
-                                        len(self.importance_hyperparameter_options)
-                                    )
+                                    for i in range(len(self.importance_hyperparameter_options))
                                 ]
                             )
 
@@ -284,14 +272,10 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                             )
                             print("expected_losses", expected_losses)
                             for _step in range(self.num_steps):
-                                current_losses = expected_losses[
-                                    torch.arange(len(config)), config
-                                ]
+                                current_losses = expected_losses[torch.arange(len(config)), config]
                                 possible_improvements = (
                                     current_losses
-                                    - expected_losses[
-                                        torch.arange(len(config)), config + 1
-                                    ]
+                                    - expected_losses[torch.arange(len(config)), config + 1]
                                 )
                                 best_option_idx = torch.argmax(possible_improvements)
                                 config[best_option_idx] += 1
@@ -299,17 +283,13 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                             print("config", config)
 
                             probs = config / config.sum()
-                            probs = (
-                                probs * 0.8 + torch.ones(len(probs)) / len(probs) * 0.2
-                            )
+                            probs = probs * 0.8 + torch.ones(len(probs)) / len(probs) * 0.2
 
                         else:
                             # Use combined counts from both epochs for normalization
                             # Avoid division by zero by setting improvements to 0 where count is 0
                             mask = total_counts > 0
-                            improvements[mask] = improvements[mask] / torch.sqrt(
-                                total_counts[mask]
-                            )
+                            improvements[mask] = improvements[mask] / torch.sqrt(total_counts[mask])
                             improvements[~mask] = 0.0
                             print("normalized improvements", improvements)
 
@@ -319,13 +299,11 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
                             probs = improvements / improvements.sum()
 
                             # make sure that the smallest prob is at least 1/len(options)/10
-                            probs = (
-                                probs * 0.9 + torch.ones(len(probs)) / len(probs) * 0.1
-                            )
+                            probs = probs * 0.9 + torch.ones(len(probs)) / len(probs) * 0.1
                     else:
-                        assert (
-                            self.normalize_loss_improvement_by is None
-                        ), f"Invalid normalization method: {self.normalize_loss_improvement_by}"
+                        assert self.normalize_loss_improvement_by is None, (
+                            f"Invalid normalization method: {self.normalize_loss_improvement_by}"
+                        )
 
                 # Store current losses and update counts for next epoch comparison
                 self.previous_epoch_losses = current_epoch_losses
@@ -333,21 +311,15 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
             else:
                 # Original gradient-based importance sampling
                 if self.grad_magnitude_adam_normalized:
-                    grad_mags = torch.tensor(
-                        [nm for m, i, _, nm in self.importance_sampling_infos]
-                    )
+                    grad_mags = torch.tensor([nm for m, i, _, nm in self.importance_sampling_infos])
                 else:
-                    grad_mags = torch.tensor(
-                        [m for m, i, *_ in self.importance_sampling_infos]
-                    )
+                    grad_mags = torch.tensor([m for m, i, *_ in self.importance_sampling_infos])
                 if not self.importance_sampling_based_on_square:
                     grad_mags = grad_mags.sqrt()
                 hyperparameter_option_index = torch.tensor(
                     [i for m, i, *_ in self.importance_sampling_infos]
                 )
-                grad_mag_per_option = torch.zeros(
-                    len(self.importance_hyperparameter_options)
-                )
+                grad_mag_per_option = torch.zeros(len(self.importance_hyperparameter_options))
                 recorded_magnitudes = torch.scatter_reduce(
                     grad_mag_per_option,
                     0,
@@ -396,9 +368,7 @@ class DiscreteImportanceSamplingDataLoader(StandardDataLoader):
             )
             multipliers.append(scales[hp_index])
 
-        for hp_index, hps, m in zip(
-            hp_indices, hyperparameters_for_all_batches, multipliers
-        ):
+        for hp_index, hps, m in zip(hp_indices, hyperparameters_for_all_batches, multipliers):
             # This call uses self.gbm, which still does its own sampling via the sampler
             b = self.gbm(
                 eval_pos_seq_len_sampler=sampler,  # Pass the sampler to gbm

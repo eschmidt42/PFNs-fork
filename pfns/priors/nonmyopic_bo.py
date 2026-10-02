@@ -1,9 +1,7 @@
 import torch
 
 from ..utils import default_device
-
 from .prior import Batch
-
 
 loaded_models = {}
 
@@ -33,8 +31,7 @@ def get_batch(
     hyperparameters=None,
     **kwargs,
 ):
-    """
-    Important Assumptions:
+    """Important Assumptions:
         'inf_batch_size', 'max_level', 'sample_only_one_level', 'eval_seq_len' and 'epochs_per_level' in hyperparameters
 
     You can train a new model, based on an old one to only sample from a single level.
@@ -55,23 +52,20 @@ def get_batch(
     :return:
     """
     if level_0_model := hyperparameters.get("level_0_model", None):
-        assert hyperparameters[
-            "sample_only_one_level"
-        ], "level_0_model only makes sense if you sample only one level"
-        assert (
-            hyperparameters["max_level"] == 1
-        ), "level_0_model only makes sense if you sample only one level"
+        assert hyperparameters["sample_only_one_level"], (
+            "level_0_model only makes sense if you sample only one level"
+        )
+        assert hyperparameters["max_level"] == 1, (
+            "level_0_model only makes sense if you sample only one level"
+        )
         level_0_model = get_model(level_0_model, device)
         model = level_0_model
 
     # the level describes how many fantasized steps are possible. This starts at 0 for the first epochs.
     epochs_per_level = hyperparameters["epochs_per_level"]
-    share_predict_mean_distribution = hyperparameters.get(
-        "share_predict_mean_distribution", 0.0
-    )
+    share_predict_mean_distribution = hyperparameters.get("share_predict_mean_distribution", 0.0)
     use_mean_prediction = share_predict_mean_distribution or (
-        model.decoder_dict_once is not None
-        and "mean_prediction" in model.decoder_dict_once
+        model.decoder_dict_once is not None and "mean_prediction" in model.decoder_dict_once
     )
     num_evals = seq_len - single_eval_pos
     level = min(
@@ -102,8 +96,7 @@ def get_batch(
         share_of_training = epoch / epochs_per_level
         # print(share_of_training, (max_used_level + 1. - share_predict_mean_distribution), max_used_level, level, epoch)
         predict_mean_distribution = (
-            share_of_training
-            >= (max_used_level + 1.0 - share_predict_mean_distribution)
+            share_of_training >= (max_used_level + 1.0 - share_predict_mean_distribution)
         ) and (max_used_level < hyperparameters["max_level"])
 
     x, y, targets = [], [], []
@@ -128,9 +121,9 @@ def get_batch(
             returns.y,
             returns.target_y,
         )
-        assert (
-            not returns.other_filled_attributes()
-        ), f"Unexpected filled attributes: {returns.other_filled_attributes()}"
+        assert not returns.other_filled_attributes(), (
+            f"Unexpected filled attributes: {returns.other_filled_attributes()}"
+        )
 
         assert levels_y is levels_targets
         levels_targets = levels_targets.clone()
@@ -138,27 +131,19 @@ def get_batch(
             levels_y = levels_y.unsqueeze(2)
             levels_targets = levels_targets.unsqueeze(2)
         if considered_level > 0:
-            feed_x = levels_x[: single_eval_pos + 1 + add_seq_len].repeat(
-                1, num_evals, 1
-            )
+            feed_x = levels_x[: single_eval_pos + 1 + add_seq_len].repeat(1, num_evals, 1)
             feed_x[single_eval_pos, :] = levels_x[single_eval_pos:seq_len].reshape(
                 -1, *levels_x.shape[2:]
             )
             if not use_mean_prediction:
-                feed_x[single_eval_pos + 1 :] = levels_x[seq_len:].repeat(
-                    1, num_evals, 1
-                )
+                feed_x[single_eval_pos + 1 :] = levels_x[seq_len:].repeat(1, num_evals, 1)
 
-            feed_y = levels_y[: single_eval_pos + 1 + add_seq_len].repeat(
-                1, num_evals, 1
-            )
+            feed_y = levels_y[: single_eval_pos + 1 + add_seq_len].repeat(1, num_evals, 1)
             feed_y[single_eval_pos, :] = levels_y[single_eval_pos:seq_len].reshape(
                 -1, *levels_y.shape[2:]
             )
             if not use_mean_prediction:
-                feed_y[single_eval_pos + 1 :] = levels_y[seq_len:].repeat(
-                    1, num_evals, 1
-                )
+                feed_y[single_eval_pos + 1 :] = levels_y[seq_len:].repeat(1, num_evals, 1)
 
             model.eval()
             means = []
@@ -177,10 +162,7 @@ def get_batch(
                         + considered_level
                         - 1
                     )
-                    if (
-                        level_0_model is not None
-                        and level_0_model.style_encoder is None
-                    ):
+                    if level_0_model is not None and level_0_model.style_encoder is None:
                         style = None
                     out = model(
                         (style, feed_x_b, feed_y_b),
@@ -195,23 +177,18 @@ def get_batch(
 
                 if once_output and "mean_prediction" in once_output:
                     mean_pred_logits = once_output["mean_prediction"].float()
-                    assert (
-                        tuple(mean_pred_logits.shape)
-                        == (
-                            feed_x_b.shape[1],
-                            model.criterion.num_bars,
-                        )
-                    ), f"{tuple(mean_pred_logits.shape)} vs {(feed_x_b.shape[1], model.criterion.num_bars)}"
-                    means.append(
-                        model.criterion.icdf(mean_pred_logits, 1.0 - 1.0 / eval_seq_len)
+                    assert tuple(mean_pred_logits.shape) == (
+                        feed_x_b.shape[1],
+                        model.criterion.num_bars,
+                    ), (
+                        f"{tuple(mean_pred_logits.shape)} vs {(feed_x_b.shape[1], model.criterion.num_bars)}"
                     )
+                    means.append(model.criterion.icdf(mean_pred_logits, 1.0 - 1.0 / eval_seq_len))
                 else:
                     logits = output["standard"].float()
                     means.append(model.criterion.mean(logits).max(0).values)
             means = torch.cat(means, 0)
-            levels_targets_new = means.view(
-                seq_len - single_eval_pos, *levels_y.shape[1:]
-            )
+            levels_targets_new = means.view(seq_len - single_eval_pos, *levels_y.shape[1:])
             levels_targets[single_eval_pos:seq_len] = (
                 levels_targets_new  # - levels_targets_new.mean(0)
             )
@@ -233,8 +210,6 @@ def get_batch(
         target_y=torch.cat(targets, 1),
         style=styles,
         mean_prediction=(
-            predict_mean_distribution.item()
-            if predict_mean_distribution is not None
-            else None
+            predict_mean_distribution.item() if predict_mean_distribution is not None else None
         ),
     )

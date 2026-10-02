@@ -4,6 +4,7 @@ from typing import Literal, Optional
 
 import torch
 from gpytorch.priors import LogNormalPrior
+
 from pfns.priors.path_stgp import sample_paths
 
 from .function_sampler import FunctionSamplerConfig
@@ -60,9 +61,7 @@ class Config(FunctionSamplerConfig):
                 + 1e-4
             )
         else:
-            raise ValueError(
-                f"Unknown noise variance distribution {self.noise_var_dist}"
-            )
+            raise ValueError(f"Unknown noise variance distribution {self.noise_var_dist}")
 
     @torch.no_grad()
     def function_sampler(self, batch_size, num_features=1, device="cpu", seed=None):
@@ -89,8 +88,7 @@ class Config(FunctionSamplerConfig):
             noiseless_outputs = paths(batch_inputs.cpu())[0]
             if independent_noise:
                 noise = (
-                    torch.randn(batch_inputs.shape[:-1])
-                    * noise_variance[:, None] ** (1 / 2)
+                    torch.randn(batch_inputs.shape[:-1]) * noise_variance[:, None] ** (1 / 2)
                 ).squeeze(-1)
             else:
                 noise = (torch.randn(batch_size) * noise_variance ** (1 / 2))[:, None]

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+
 from pfns.base_config import BaseConfig
 from pfns.priors import Batch
 
@@ -58,9 +59,9 @@ class UniformFloatDistConfig(DistributionConfig):
         return encoded_value * (self.upper - self.lower) + self.lower
 
     def encode_to_torch(self, value):
-        assert (value >= self.lower) and (
-            value <= self.upper
-        ), f"Value {value} not in range [{self.lower}, {self.upper}]"
+        assert (value >= self.lower) and (value <= self.upper), (
+            f"Value {value} not in range [{self.lower}, {self.upper}]"
+        )
         return value
 
 
@@ -90,18 +91,14 @@ class PowerUniformFloatDistConfig(DistributionConfig):
         u = random.uniform(0, 1)
         transformed_lower = self.lower ** (1 / self.power)
         transformed_upper = self.upper ** (1 / self.power)
-        transformed_value = (
-            u * (transformed_upper - transformed_lower) + transformed_lower
-        )
+        transformed_value = u * (transformed_upper - transformed_lower) + transformed_lower
         return transformed_value**self.power
 
     def normalize(self, value: torch.Tensor) -> torch.Tensor:
         transformed_value = torch.pow(value, 1 / self.power)
         transformed_lower = self.lower ** (1 / self.power)
         transformed_upper = self.upper ** (1 / self.power)
-        return (transformed_value - transformed_lower) / (
-            transformed_upper - transformed_lower
-        )
+        return (transformed_value - transformed_lower) / (transformed_upper - transformed_lower)
 
     def unnormalize(self, encoded_value: torch.Tensor) -> torch.Tensor:
         transformed_value = encoded_value * (
@@ -110,9 +107,9 @@ class PowerUniformFloatDistConfig(DistributionConfig):
         return torch.pow(transformed_value, self.power)
 
     def encode_to_torch(self, value):
-        assert (value >= self.lower) and (
-            value <= self.upper
-        ), f"Value {value} not in range [{self.lower}, {self.upper}]"
+        assert (value >= self.lower) and (value <= self.upper), (
+            f"Value {value} not in range [{self.lower}, {self.upper}]"
+        )
         return value
 
 
@@ -144,15 +141,14 @@ class UniformIntegerDistConfig(DistributionConfig):
     def unnormalize(self, encoded_value):
         if self.log:
             return torch.exp(
-                encoded_value * (math.log(self.upper) - math.log(self.lower))
-                + math.log(self.lower)
+                encoded_value * (math.log(self.upper) - math.log(self.lower)) + math.log(self.lower)
             )
         return encoded_value * (self.upper - self.lower) + self.lower
 
     def encode_to_torch(self, value):
-        assert (value >= self.lower) and (
-            value <= self.upper
-        ), f"Value {value} not in range [{self.lower}, {self.upper}]"
+        assert (value >= self.lower) and (value <= self.upper), (
+            f"Value {value} not in range [{self.lower}, {self.upper}]"
+        )
         return value
 
 
@@ -215,25 +211,21 @@ def get_all_styled_hps(hyperparameters):
     Returns:
         List of hyperparameter names that should be added as style, or empty list if none
     """
-    hps_as_style: str | list[str] = hyperparameters[
-        "hyperparameter_sampling_add_hps_to_style"
-    ]
+    hps_as_style: str | list[str] = hyperparameters["hyperparameter_sampling_add_hps_to_style"]
     if hps_as_style == "all_sampled":
         return list(find_all_distribution_hps(hyperparameters))
     else:
-        assert isinstance(
-            hps_as_style, list
-        ), "hyperparameter_sampling_add_hps_to_style must be a list of strings or 'all_sampled'"
+        assert isinstance(hps_as_style, list), (
+            "hyperparameter_sampling_add_hps_to_style must be a list of strings or 'all_sampled'"
+        )
         return hps_as_style
 
 
-def get_batch(
-    batch_size, *args, hyperparameters, get_batch, batch_size_per_gp_sample=1, **kwargs
-):
+def get_batch(batch_size, *args, hyperparameters, get_batch, batch_size_per_gp_sample=1, **kwargs):
     hyperparameters = deepcopy(hyperparameters)
-    assert (
-        batch_size % batch_size_per_gp_sample == 0
-    ), f"batch_size {batch_size} must be a multiple of batch_size_per_gp_sample {batch_size_per_gp_sample}"
+    assert batch_size % batch_size_per_gp_sample == 0, (
+        f"batch_size {batch_size} must be a multiple of batch_size_per_gp_sample {batch_size_per_gp_sample}"
+    )
     num_models = batch_size // batch_size_per_gp_sample
     skip_prob = hyperparameters.pop("hyperparameter_sampling_skip_style_prob")
     hps_as_style = get_all_styled_hps(hyperparameters)
@@ -258,9 +250,10 @@ def get_batch(
         sub_hps.append(hyperparameters_sample)
 
     assert all(
-        not b.other_filled_attributes(set_of_attributes=("x", "y", "target_y"))
-        for b in sub_batches
-    ), f"Batch {[b.other_filled_attributes(set_of_attributes=('x', 'y', 'target_y')) for b in sub_batches if b.other_filled_attributes(set_of_attributes=('x', 'y', 'target_y'))]} has other attributes filled in."
+        not b.other_filled_attributes(set_of_attributes=("x", "y", "target_y")) for b in sub_batches
+    ), (
+        f"Batch {[b.other_filled_attributes(set_of_attributes=('x', 'y', 'target_y')) for b in sub_batches if b.other_filled_attributes(set_of_attributes=('x', 'y', 'target_y'))]} has other attributes filled in."
+    )
 
     batch = Batch(
         x=torch.cat([b.x for b in sub_batches], dim=0),
@@ -280,9 +273,7 @@ def get_batch(
                     b.style[:, j] = float("nan")
                 else:
                     b.style[:, j] = float(
-                        access_dict_with_path(hyperparameters, hp).encode_to_torch(
-                            hp_value
-                        )
+                        access_dict_with_path(hyperparameters, hp).encode_to_torch(hp_value)
                     )
 
         batch.style = torch.cat([b.style for b in sub_batches], dim=0)
@@ -322,9 +313,7 @@ class HyperparameterNormalizer(torch.nn.Module):
 
         # Convert dict to tensor format
         values = [
-            access_dict_with_path(self.hyperparameters, hp).encode_to_torch(
-                raw_hyperparameters[hp]
-            )
+            access_dict_with_path(self.hyperparameters, hp).encode_to_torch(raw_hyperparameters[hp])
             if hp in raw_hyperparameters
             else float("nan")
             for hp in self.to_be_encoded_hyperparameters
@@ -353,9 +342,7 @@ class HyperparameterNormalizer(torch.nn.Module):
             non_nan_indices = ~is_nan
             if non_nan_indices.any():
                 if isinstance(hp_value, DistributionConfig):
-                    normalized = hp_value.normalize(
-                        raw_hyperparameters[non_nan_indices, i]
-                    )
+                    normalized = hp_value.normalize(raw_hyperparameters[non_nan_indices, i])
                     encoded_x[non_nan_indices, i] = normalized
                 else:
                     raise NotImplementedError(

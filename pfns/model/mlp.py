@@ -6,9 +6,9 @@ from enum import Enum
 from functools import partial
 
 import torch
+from torch.utils.checkpoint import checkpoint
 
 from pfns.model.save_peak_memory import support_save_peak_mem_factor
-from torch.utils.checkpoint import checkpoint
 
 
 class Activation(Enum):
@@ -53,22 +53,21 @@ class MLP(torch.nn.Module):
         bias: bool = False,
         recompute: bool = False,
     ):
-        """
-        Args:
-            size: The input and output size of the MLP.
-            hidden_size: The size of the hidden layer.
-            activation:
-                The activation function to use. Can be either an Activation enum or
-                a string representing the activation name.
-            device: The device to use for the linear layers.
-            dtype: The data type to use for the linear layers.
-            initialize_output_to_zero:
-                Whether to initialize the output layer weights
-                to zero. Default is False.
-            bias: Whether to use bias in the linear layers. Default is False.
-            recompute:
-                Whether to recompute the forward pass during backpropagation.
-                This can save memory but increase computation time. Default is False.
+        """Args:
+        size: The input and output size of the MLP.
+        hidden_size: The size of the hidden layer.
+        activation:
+            The activation function to use. Can be either an Activation enum or
+            a string representing the activation name.
+        device: The device to use for the linear layers.
+        dtype: The data type to use for the linear layers.
+        initialize_output_to_zero:
+            Whether to initialize the output layer weights
+            to zero. Default is False.
+        bias: Whether to use bias in the linear layers. Default is False.
+        recompute:
+            Whether to recompute the forward pass during backpropagation.
+            This can save memory but increase computation time. Default is False.
         """
         super().__init__()
         self.linear1 = torch.nn.Linear(

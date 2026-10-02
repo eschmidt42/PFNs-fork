@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example configuration file for PFN training.
+"""Example configuration file for PFN training.
 This is a Hebo+ prior configuration, as found in the PFNs4BO paper.
 This file demonstrates how to configure the MainConfig for training using Python.
 """
@@ -8,6 +7,8 @@ This file demonstrates how to configure the MainConfig for training using Python
 import math
 
 import torch
+from tqdm import tqdm
+
 from pfns.model import bar_distribution
 from pfns.model.encoders import EncoderConfig
 from pfns.priors.prior import AdhocPriorConfig
@@ -18,8 +19,6 @@ from pfns.train import (
     TransformerConfig,
 )
 from pfns.utils import product_dict
-
-from tqdm import tqdm
 
 config_dicts = product_dict(
     {
@@ -83,9 +82,7 @@ def get_config(config_index: int):
         optimizer=OptimizerConfig("adamw", lr=lr, weight_decay=0.0),
         scheduler="cosine_decay",
         model=TransformerConfig(
-            criterion=bar_distribution.BarDistributionConfig(
-                borders.tolist(), full_support=True
-            ),
+            criterion=bar_distribution.BarDistributionConfig(borders.tolist(), full_support=True),
             emsize=emsize,
             nhead=emsize // 32,
             nhid=emsize * 4,

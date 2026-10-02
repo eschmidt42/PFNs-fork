@@ -3,29 +3,20 @@ from functools import partial
 
 import pfns.encoders as encoders
 import torch
-
 from pfns.transformer import TransformerModel
 
 
 def load_model_only_inference(path, filename, device="cpu"):
-    """
-    Loads a saved model from the specified position. This function only restores inference capabilities and
+    """Loads a saved model from the specified position. This function only restores inference capabilities and
     cannot be used for further training.
     """
-
     model_state, optimizer_state, config_sample = torch.load(
         os.path.join(path, filename), map_location="cpu"
     )
 
     if (
-        (
-            "nan_prob_no_reason" in config_sample
-            and config_sample["nan_prob_no_reason"] > 0.0
-        )
-        or (
-            "nan_prob_a_reason" in config_sample
-            and config_sample["nan_prob_a_reason"] > 0.0
-        )
+        ("nan_prob_no_reason" in config_sample and config_sample["nan_prob_no_reason"] > 0.0)
+        or ("nan_prob_a_reason" in config_sample and config_sample["nan_prob_a_reason"] > 0.0)
         or (
             "nan_prob_unknown_reason" in config_sample
             and config_sample["nan_prob_unknown_reason"] > 0.0
@@ -71,9 +62,7 @@ def load_model_only_inference(path, filename, device="cpu"):
     module_prefix = "module."
     model_state = {k.replace(module_prefix, ""): v for k, v in model_state.items()}
     for key in list(model_state.keys()):
-        model_state[key.replace("decoder", "decoder_dict.standard")] = model_state.pop(
-            key
-        )
+        model_state[key.replace("decoder", "decoder_dict.standard")] = model_state.pop(key)
     model.load_state_dict(model_state)
     model.to(device)
     model.eval()

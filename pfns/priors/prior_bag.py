@@ -1,7 +1,6 @@
 from typing import List
 
 import torch
-
 import utils
 
 from ..utils import default_device
@@ -19,9 +18,9 @@ def get_batch(
 ):
     batch_size_per_gp_sample = batch_size_per_gp_sample or (min(64, batch_size))
     num_models = batch_size // batch_size_per_gp_sample
-    assert (
-        num_models * batch_size_per_gp_sample == batch_size
-    ), f"Batch size ({batch_size}) not divisible by batch_size_per_gp_sample ({batch_size_per_gp_sample})"
+    assert num_models * batch_size_per_gp_sample == batch_size, (
+        f"Batch size ({batch_size}) not divisible by batch_size_per_gp_sample ({batch_size_per_gp_sample})"
+    )
 
     args = {
         "device": device,
@@ -36,9 +35,7 @@ def get_batch(
         for i in range(1, len(prior_bag_priors_get_batch))
     ]
 
-    weights = torch.tensor(
-        prior_bag_priors_p, dtype=torch.float
-    )  # create a tensor of weights
+    weights = torch.tensor(prior_bag_priors_p, dtype=torch.float)  # create a tensor of weights
     batch_assignments = torch.multinomial(
         torch.softmax(weights, 0), num_models, replacement=True
     ).numpy()

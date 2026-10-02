@@ -22,9 +22,7 @@ class BaseConfig:
         # Access the dataclass parameters to check if frozen=True was set
         dataclass_params = self.__dataclass_params__
         if not dataclass_params.frozen:
-            raise TypeError(
-                f"Class {type(self).__name__} must use @dataclass(frozen=True)"
-            )
+            raise TypeError(f"Class {type(self).__name__} must use @dataclass(frozen=True)")
 
         if self.strict_field_types:
             for f in fields(self):
@@ -32,8 +30,7 @@ class BaseConfig:
                 self._validate_field_type(f.name, value)
 
     def _validate_field_type(self, name, value):
-        """
-        Validate that a field value is either a basic type, a ConfigBase, or a collection of them.
+        """Validate that a field value is either a basic type, a ConfigBase, or a collection of them.
         :param name: Name of the field, used for error messages only.
         :param value: Value of the field.
         :return: None, raises an error if the field is invalid.
@@ -94,7 +91,8 @@ class BaseConfig:
     @staticmethod
     def from_dict(data: dict):
         """Build a config object from a nested dictionary structure.
-        The dictionary should match what to_dict() produces, handling both nested dicts and lists."""
+        The dictionary should match what to_dict() produces, handling both nested dicts and lists.
+        """
         # Base case - not a container
         if not isinstance(data, (dict, Sequence)) or isinstance(data, str):
             return data

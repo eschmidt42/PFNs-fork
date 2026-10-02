@@ -1,8 +1,9 @@
 from abc import ABCMeta, abstractmethod
 from typing import Callable
 
-from pfns.base_config import BaseConfig
 from torch import Tensor
+
+from pfns.base_config import BaseConfig
 
 
 class FunctionSamplerConfig(BaseConfig, metaclass=ABCMeta):

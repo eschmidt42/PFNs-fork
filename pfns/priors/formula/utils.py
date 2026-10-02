@@ -4,8 +4,7 @@ def bias_str(bias):
 
 
 def print_tree(tree, node_idx=0, indent=0, prefix=""):
-    """
-    Print a tree in a human-readable format with indentation to show hierarchy.
+    """Print a tree in a human-readable format with indentation to show hierarchy.
 
     Args:
         tree: The tree structure (list of nodes)
@@ -21,9 +20,7 @@ def print_tree(tree, node_idx=0, indent=0, prefix=""):
     prefix = f"{indent_str}{prefix}"
 
     if node_type == "input" or node_type == "leaf":
-        print(
-            f"{prefix}{node_type.upper()} {node['op_or_input']} + ~ {node['noise_std']:.2f}"
-        )
+        print(f"{prefix}{node_type.upper()} {node['op_or_input']} + ~ {node['noise_std']:.2f}")
     elif node_type == "unary":
         op_name = node["op_or_input"]
 

@@ -4,10 +4,10 @@ import math
 from functools import partial
 
 import torch
-
-from pfns.model.save_peak_memory import support_save_peak_mem_factor
 from torch.utils.checkpoint import checkpoint
 from typing_extensions import override
+
+from pfns.model.save_peak_memory import support_save_peak_mem_factor
 
 try:
     from flash_attn.flash_attn_interface import (
@@ -42,8 +42,7 @@ def apply_rope(x, rope_vals):
 
 
 class MultiHeadAttention(torch.nn.Module):
-    """
-    An implementation of multi-head attention, heavily relying on the pytorch
+    """An implementation of multi-head attention, heavily relying on the pytorch
     implementation of multi-head attention, but with some modeifications, namely:
         - simple multiquery attention for the test set
         - support caching
@@ -97,9 +96,7 @@ class MultiHeadAttention(torch.nn.Module):
     @property
     def has_cached_kv(self) -> bool:
         assert (self._k_cache is None) == (self._v_cache is None)
-        assert self._kv_cache is None or (
-            self._k_cache is None and self._v_cache is None
-        )
+        assert self._kv_cache is None or (self._k_cache is None and self._v_cache is None)
         return (
             self._k_cache is not None and self._v_cache is not None
         ) or self._kv_cache is not None
@@ -330,12 +327,12 @@ class MultiHeadAttention(torch.nn.Module):
         Else, keys and values are attained by applying the respective linear
         transformations to 'x' (self attention).
         """
-        assert not (
-            cache_kv and use_cached_kv
-        ), "Cannot cache and use cached keys and values at the same time."
-        assert (
-            not x.requires_grad or not cache_kv
-        ), "Saving keys and values will stop gradients to flow into trainset."
+        assert not (cache_kv and use_cached_kv), (
+            "Cannot cache and use cached keys and values at the same time."
+        )
+        assert not x.requires_grad or not cache_kv, (
+            "Saving keys and values will stop gradients to flow into trainset."
+        )
 
         # Flatten the batch dimensions
         x, x_kv, x_shape_after_transpose = self._rearrange_inputs_to_flat_batch(x, x_kv)
@@ -346,15 +343,15 @@ class MultiHeadAttention(torch.nn.Module):
         positions_flat = None
         positions_kv_flat = None
         if positions is not None:
-            assert (
-                positions.shape[-1] == 1
-            ), f"positions must have trailing dim 1, got {positions.shape}"
+            assert positions.shape[-1] == 1, (
+                f"positions must have trailing dim 1, got {positions.shape}"
+            )
             # Squeeze the trailing dim and flatten batch dims
             positions_flat = positions.reshape(-1, positions.shape[-2])
         if positions_kv is not None:
-            assert (
-                positions_kv.shape[-1] == 1
-            ), f"positions_kv must have trailing dim 1, got {positions_kv.shape}"
+            assert positions_kv.shape[-1] == 1, (
+                f"positions_kv must have trailing dim 1, got {positions_kv.shape}"
+            )
             positions_kv_flat = positions_kv.reshape(-1, positions_kv.shape[-2])
 
         nhead_kv = 1 if reuse_first_head_kv else self._nhead_kv
@@ -433,9 +430,9 @@ class MultiHeadAttention(torch.nn.Module):
         torch.Tensor | None,
         torch.Tensor | None,
     ]:
-        assert not (
-            cache_kv and use_cached_kv
-        ), "You cannot both cache new KV and use the cached KV at once."
+        assert not (cache_kv and use_cached_kv), (
+            "You cannot both cache new KV and use the cached KV at once."
+        )
         if reuse_first_head_kv:
             assert x is not x_kv, (
                 "x and x_kv must be different tensors. That means reuse_first_head_kv"
@@ -446,9 +443,9 @@ class MultiHeadAttention(torch.nn.Module):
 
         k = v = kv = None
         if use_cached_kv:
-            assert (
-                self.has_cached_kv
-            ), "You try to use cached keys and values but the cache is empty."
+            assert self.has_cached_kv, (
+                "You try to use cached keys and values but the cache is empty."
+            )
             k = k_cache
             v = v_cache
             kv = kv_cache
@@ -460,13 +457,7 @@ class MultiHeadAttention(torch.nn.Module):
         else:
             w_q, w_kv = self._w_qkv[0], self._w_qkv[1:]
 
-        if (
-            self._w_qkv is not None
-            and x is x_kv
-            and kv is None
-            and k is None
-            and v is None
-        ):
+        if self._w_qkv is not None and x is x_kv and kv is None and k is None and v is None:
             qkv = torch.einsum("... s, j h d s -> ... j h d", x, self._w_qkv)
             q = None
         else:
@@ -549,9 +540,7 @@ class MultiHeadAttention(torch.nn.Module):
             if k is not None:
                 k = apply_rope(k, rope_vals[:, : k.shape[1]])
             if kv is not None:
-                kv[..., 0, :, :] = apply_rope(
-                    kv[..., 0, :, :], rope_vals[:, : kv.shape[1]]
-                )
+                kv[..., 0, :, :] = apply_rope(kv[..., 0, :, :], rope_vals[:, : kv.shape[1]])
             if qkv is not None:
                 qkv[..., 0, :, :] = apply_rope(qkv[..., 0, :, :], rope_vals)
                 qkv[..., 1, :, :] = apply_rope(qkv[..., 1, :, :], rope_vals)
@@ -634,9 +623,7 @@ class MultiHeadAttention(torch.nn.Module):
         assert v is not None
 
         if positions is not None:
-            assert (
-                positions_kv is not None
-            ), "positions is not None but positions_kv is None"
+            assert positions_kv is not None, "positions is not None but positions_kv is None"
 
         if dont_look_at_yourself:
             assert positions_num_measures > 0
@@ -654,9 +641,7 @@ class MultiHeadAttention(torch.nn.Module):
         )
 
         # this string comparison is reliable, as it does not compare to a subversion
-        TORCH_2_ATTENTION_POSSIBLE = (
-            torch.__version__ >= "2" and torch.cuda.is_available()
-        )
+        TORCH_2_ATTENTION_POSSIBLE = torch.__version__ >= "2" and torch.cuda.is_available()
         if positions_num_measures > 0:
             TORCH_2_ATTENTION_POSSIBLE = False
             use_flash_attention = False
@@ -678,7 +663,7 @@ class MultiHeadAttention(torch.nn.Module):
                     enable_gqa=True,
                 )
                 TORCH_2_SUPPORTS_GQ = True
-            except (TypeError, RuntimeError):
+            except TypeError, RuntimeError:
                 TORCH_2_SUPPORTS_GQ = False
 
             if torch.cuda.is_available():
@@ -808,13 +793,12 @@ class MultiHeadAttention(torch.nn.Module):
             )  # [b,k,h,d]
             # Prototype: compute pairwise distance metrics without modifying attention
             if positions_num_measures > 0:
-                assert (
-                    positions.shape[0] == batch_size and positions.shape[1] == seqlen_q
-                ), f"positions (q) shape {positions.shape} incompatible with {(batch_size, seqlen_q)}"
-                assert (
-                    positions_kv.shape[0] == batch_size
-                    and positions_kv.shape[1] == seqlen_kv
-                ), f"positions_kv (kv) shape {positions_kv.shape} incompatible with {(batch_size, seqlen_kv)}"
+                assert positions.shape[0] == batch_size and positions.shape[1] == seqlen_q, (
+                    f"positions (q) shape {positions.shape} incompatible with {(batch_size, seqlen_q)}"
+                )
+                assert positions_kv.shape[0] == batch_size and positions_kv.shape[1] == seqlen_kv, (
+                    f"positions_kv (kv) shape {positions_kv.shape} incompatible with {(batch_size, seqlen_kv)}"
+                )
                 pos_q = positions
                 pos_k = positions_kv
                 # Distance per (q,k)
@@ -826,9 +810,7 @@ class MultiHeadAttention(torch.nn.Module):
                 )
                 thresholds = (positions_base * scales)[None, None, None, :]
                 # Vector of within-threshold interpolations in [0,1]
-                g = 1.0 - 2.0 * (dist[..., None] / thresholds).clamp(
-                    0.0, 1.0
-                )  # [b,q,k,T]
+                g = 1.0 - 2.0 * (dist[..., None] / thresholds).clamp(0.0, 1.0)  # [b,q,k,T]
                 # Direction indicator
                 diff = pos_k[:, None, :] - pos_q[:, :, None]
                 is_right = 2 * (diff >= 0.0).to(q.dtype) - 1  # [b,q,k]
@@ -836,9 +818,7 @@ class MultiHeadAttention(torch.nn.Module):
                 g = torch.cat([g, is_right[..., None]], dim=-1)  # [b,q,k,T+1]
                 t = g.shape[-1]
 
-                logits = torch.einsum(
-                    "b q h d, b k h d -> b q k h", q[..., :-t], k[..., :-t]
-                )
+                logits = torch.einsum("b q h d, b k h d -> b q k h", q[..., :-t], k[..., :-t])
                 position_available_mask = ~positions.isnan().any(1)  # [b]
                 logits[position_available_mask] += torch.einsum(
                     "b q h t, b q k t -> b q k h",
@@ -847,9 +827,7 @@ class MultiHeadAttention(torch.nn.Module):
                 )
 
                 if dont_look_at_yourself:
-                    logits[:, torch.arange(seqlen_kv), torch.arange(seqlen_kv), :] = (
-                        float("-inf")
-                    )
+                    logits[:, torch.arange(seqlen_kv), torch.arange(seqlen_kv), :] = float("-inf")
             else:
                 logits = torch.einsum("b q h d, b k h d -> b q k h", q, k)
             logits *= (
@@ -860,20 +838,14 @@ class MultiHeadAttention(torch.nn.Module):
             ps = torch.softmax(logits, dim=2)
             ps = torch.dropout(ps, dropout_p, train=True)
             if positions_num_measures > 0:
-                attention_head_outputs = torch.einsum(
-                    "b q k h, b k h d -> b q h d", ps, v
-                )
-                attention_head_outputs[position_available_mask, ..., -t:] = (
-                    torch.einsum(
-                        "b q k h, b q k t -> b q h t",
-                        ps[position_available_mask],
-                        g[position_available_mask],
-                    )
+                attention_head_outputs = torch.einsum("b q k h, b k h d -> b q h d", ps, v)
+                attention_head_outputs[position_available_mask, ..., -t:] = torch.einsum(
+                    "b q k h, b q k t -> b q h t",
+                    ps[position_available_mask],
+                    g[position_available_mask],
                 )
             else:
-                attention_head_outputs = torch.einsum(
-                    "b q k h, b k h d -> b q h d", ps, v
-                )
+                attention_head_outputs = torch.einsum("b q k h, b k h d -> b q h d", ps, v)
 
         return attention_head_outputs.reshape(
             batch_size,

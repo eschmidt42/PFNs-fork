@@ -2,10 +2,10 @@ import pytest
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn import CrossEntropyLoss
 
 from pfns.model import encoders, transformer
-from pfns.model.transformer import isolate_torch_rng, TableTransformer
-from torch.nn import CrossEntropyLoss
+from pfns.model.transformer import TableTransformer, isolate_torch_rng
 
 
 class SimpleStyleEncoder(nn.Module):
@@ -137,17 +137,17 @@ def test_add_embeddings_normal_rand_vec():
     )
 
     # Check that the embeddings are the same
-    assert torch.allclose(
-        x1_out, x2_out
-    ), "Embeddings added to x should be identical with the same seed"
-    assert torch.allclose(
-        y1_out, y2_out
-    ), "Embeddings added to y should be identical with the same seed"
+    assert torch.allclose(x1_out, x2_out), (
+        "Embeddings added to x should be identical with the same seed"
+    )
+    assert torch.allclose(y1_out, y2_out), (
+        "Embeddings added to y should be identical with the same seed"
+    )
 
     # Check that the embeddings are not zero (they were actually added)
-    assert not torch.allclose(
-        x1_out, torch.zeros_like(x1_out)
-    ), "Embeddings should change the zero tensor"
+    assert not torch.allclose(x1_out, torch.zeros_like(x1_out)), (
+        "Embeddings should change the zero tensor"
+    )
 
     x3 = torch.zeros((batch_size, seq_len, num_groups, emsize), device="cpu")
     y3 = torch.zeros((batch_size, seq_len, emsize), device="cpu")
@@ -163,14 +163,11 @@ def test_add_embeddings_normal_rand_vec():
     )
 
     # Check that embeddings are different with different seed
-    assert not torch.allclose(
-        x1_out, x3_out
-    ), "Embeddings should be different with different seeds"
+    assert not torch.allclose(x1_out, x3_out), "Embeddings should be different with different seeds"
 
 
 def test_isolate_torch_rng():
     """Test that isolate_torch_rng properly isolates the random number generator state."""
-
     # Generate a random tensor before using isolate_torch_rng
     torch.manual_seed(123)
     tensor_before1 = torch.rand(5)
@@ -422,9 +419,7 @@ def test_style_encoder(sample_data):
     assert output.shape == expected_shape
 
     # Test per-feature style vectors (always batch-first for style)
-    feature_style = torch.randn(
-        sample_data["batch_size"], sample_data["num_features"], 5
-    )
+    feature_style = torch.randn(sample_data["batch_size"], sample_data["num_features"], 5)
 
     output2 = transformer_model(
         x=sample_data["train_x"],
@@ -493,9 +488,7 @@ def test_y_style_encoder(sample_data):
     assert output2.shape == expected_shape
 
     # Test per-feature style with both style and y_style
-    feature_style = torch.randn(
-        sample_data["batch_size"], sample_data["num_features"], 5
-    )
+    feature_style = torch.randn(sample_data["batch_size"], sample_data["num_features"], 5)
 
     output3 = transformer_model(
         x=sample_data["train_x"],
@@ -544,9 +537,7 @@ def test_separate_train_inference(
 
     model.feature_positional_embedding = None  # 'subspace'
     for layer in model.transformer_layers.layers:
-        layer.multiquery_item_attention_for_test_set = (
-            multiquery_item_attention_for_test_set
-        )
+        layer.multiquery_item_attention_for_test_set = multiquery_item_attention_for_test_set
 
     model.cache_trainset_representation = True
     model.reset_save_peak_mem_factor(None)
@@ -600,9 +591,7 @@ def test_separate_train_inference(
     # model's forward will split y internally for _forward's single_eval_pos
     logits1a = model(x_train_model, y_model, x_test_model)
 
-    assert logits1.float() == pytest.approx(
-        logits1a.float(), abs=1e-5
-    ), f"{logits1} != {logits1a}"
+    assert logits1.float() == pytest.approx(logits1a.float(), abs=1e-5), f"{logits1} != {logits1a}"
 
 
 @pytest.mark.parametrize(
@@ -611,7 +600,6 @@ def test_separate_train_inference(
 )
 def test_transformer_overfit(attention_between_features):
     """Test that a tiny transformer can overfit a simple classification task."""
-
     # Create a tiny transformer for a simple classification task
     batch_size = 3
     seq_len_train = 3  # 3 examples in context

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Command-line interface for training PFNs models.
-"""
+"""Command-line interface for training PFNs models."""
 
 import argparse
 import importlib.util
@@ -108,9 +106,7 @@ def load_config_from_python(
             if hasattr(config_module, "get_config"):
                 config = config_module.get_config(config_index)
             else:
-                assert (
-                    config_index == 0
-                ), "config_index is not 0 but get_config is not defined"
+                assert config_index == 0, "config_index is not 0 but get_config is not defined"
                 config = config_module.config
 
             print(f"Successfully loaded config from {config_file}")
@@ -142,20 +138,20 @@ def main():
         return f"{config_file.split('/')[-1].split('.')[0]}"
 
     if args.checkpoint_save_load_suffix:
-        assert (
-            args.checkpoint_save_load_prefix is not None
-        ), "checkpoint_save_load_prefix is required when checkpoint_save_load_suffix is provided"
+        assert args.checkpoint_save_load_prefix is not None, (
+            "checkpoint_save_load_prefix is required when checkpoint_save_load_suffix is provided"
+        )
 
     config_tensorboard_path_is_none = config.tensorboard_path is None
 
     # Override checkpoint paths if specified via CLI
     if args.checkpoint_save_load_prefix is not None:
-        assert (
-            config.train_state_dict_save_path is None
-        ), "train_state_dict_save_path is already set"
-        assert (
-            config.train_state_dict_load_path is None
-        ), "train_state_dict_load_path is already set"
+        assert config.train_state_dict_save_path is None, (
+            "train_state_dict_save_path is already set"
+        )
+        assert config.train_state_dict_load_path is None, (
+            "train_state_dict_load_path is already set"
+        )
         assert config_tensorboard_path_is_none, "tensorboard_path is already set"
 
         # Add suffix if it exists

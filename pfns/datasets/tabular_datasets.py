@@ -15,9 +15,7 @@ def get_openml_classification(did, max_samples, multiclass=True, shuffled=True):
         y = y[y < 2]
 
     if multiclass and not shuffled:
-        raise NotImplementedError(
-            "This combination of multiclass and shuffling isn't implemented"
-        )
+        raise NotImplementedError("This combination of multiclass and shuffling isn't implemented")
 
     if not isinstance(X, np.ndarray) or not isinstance(y, np.ndarray):
         print("Not a NP Array, skipping")
@@ -65,9 +63,7 @@ def load_openml_list(
     datalist = pd.DataFrame.from_dict(openml_list, orient="index")
     if filter_for_nan:
         datalist = datalist[datalist["NumberOfInstancesWithMissingValues"] == 0]
-        print(
-            f"Number of datasets after Nan and feature number filtering: {len(datalist)}"
-        )
+        print(f"Number of datasets after Nan and feature number filtering: {len(datalist)}")
 
     for ds in datalist.index:
         modifications = {

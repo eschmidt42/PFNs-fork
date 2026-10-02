@@ -3,6 +3,7 @@
 from dataclasses import fields
 
 import torch
+
 from pfns.priors.prior import Batch
 
 
@@ -16,8 +17,7 @@ def get_batch(
     n_targets_per_input: int = 1,
     **kwargs,
 ) -> Batch:
-    """
-    Wrapper function that converts traditional batch format to x-only format.
+    """Wrapper function that converts traditional batch format to x-only format.
 
     This function takes a traditional get_batch function and converts its output
     from the format with separate x, y, target_y to the x-only format with
@@ -50,9 +50,7 @@ def get_batch(
 
     # Extract traditional format components
     x_traditional = traditional_batch.x  # shape: (batch_size, seq_len, num_features)
-    y_traditional = (
-        traditional_batch.y
-    )  # shape: (batch_size, seq_len, 1) or (batch_size, seq_len,)
+    y_traditional = traditional_batch.y  # shape: (batch_size, seq_len, 1) or (batch_size, seq_len,)
     if len(y_traditional.shape) == 2:
         y_traditional = y_traditional.unsqueeze(-1)
     target_y_traditional = (
@@ -68,9 +66,7 @@ def get_batch(
     x_test = x_traditional[
         :, single_eval_pos:, :
     ]  # shape: (batch_size, seq_len - single_eval_pos, num_features)
-    y_train = y_traditional[
-        :, :single_eval_pos, :
-    ]  # shape: (batch_size, single_eval_pos, 1)
+    y_train = y_traditional[:, :single_eval_pos, :]  # shape: (batch_size, single_eval_pos, 1)
     y_test_targets = target_y_traditional[
         :, single_eval_pos:, :
     ]  # shape: (batch_size, seq_len - single_eval_pos, n_targets_per_input)
@@ -100,8 +96,7 @@ def get_batch(
     # Create the x-only format batch, taking over all entries from the original batch
     # except for the ones we need to change
     batch_dict = {
-        field.name: getattr(traditional_batch, field.name)
-        for field in fields(traditional_batch)
+        field.name: getattr(traditional_batch, field.name) for field in fields(traditional_batch)
     }
 
     # Override the fields that need to change for x-only format

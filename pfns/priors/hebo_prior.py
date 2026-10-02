@@ -4,12 +4,10 @@ import botorch
 import gpytorch
 import torch
 from botorch.exceptions import InputDataWarning
-
 from gpytorch.means import ZeroMean
 from gpytorch.priors.torch_priors import GammaPrior, LogNormalPrior, UniformPrior
 
 from ..utils import default_device, to_tensor
-
 from . import utils
 from .prior import Batch
 
@@ -26,17 +24,14 @@ def constraint_based_on_distribution_support(
             to_tensor(prior.support.upper_bound, device=device),
         )
     else:
-        return gpytorch.constraints.GreaterThan(
-            to_tensor(prior.support.lower_bound, device=device)
-        )
+        return gpytorch.constraints.GreaterThan(to_tensor(prior.support.lower_bound, device=device))
 
 
 loaded_things = {}
 
 
 def torch_load(path):
-    """
-    Cached torch load. Caution: This does not copy the output but keeps pointers.
+    """Cached torch load. Caution: This does not copy the output but keeps pointers.
     That means, if you modify the output, you modify the output of later calls to this function with the same args.
     :param path:
     :return:
@@ -107,9 +102,7 @@ def get_model(x, y, hyperparameters: dict, sample=True, no_deepcopy=True):
     likelihood.register_prior(
         "noise_prior",
         LogNormalPrior(
-            torch.tensor(
-                hyperparameters.get("hebo_noise_logmean", -4.63), device=device
-            ),
+            torch.tensor(hyperparameters.get("hebo_noise_logmean", -4.63), device=device),
             torch.tensor(hyperparameters.get("hebo_noise_std", 0.5), device=device),
         ),
         "noise",
@@ -166,12 +159,8 @@ def get_model(x, y, hyperparameters: dict, sample=True, no_deepcopy=True):
 
     if torch.rand(1).item() < float(hyperparameters.get("add_linear_kernel", True)):
         # ORIG DIFF: added priors for variance and outputscale of linear kernel
-        var_prior = UniformPrior(
-            torch.tensor(0.0, device=device), torch.tensor(1.0, device=device)
-        )
-        out_prior = UniformPrior(
-            torch.tensor(0.0, device=device), torch.tensor(1.0, device=device)
-        )
+        var_prior = UniformPrior(torch.tensor(0.0, device=device), torch.tensor(1.0, device=device))
+        out_prior = UniformPrior(torch.tensor(0.0, device=device), torch.tensor(1.0, device=device))
         lincovar_module = gpytorch.kernels.ScaleKernel(
             gpytorch.kernels.LinearKernel(
                 variance_prior=var_prior,
@@ -260,8 +249,7 @@ def get_batch(
     verbose=False,
     **kwargs,
 ):
-    """
-    This function is very similar to the equivalent in .fast_gp. The only difference is that this function operates over
+    """This function is very similar to the equivalent in .fast_gp. The only difference is that this function operates over
     a mixture of GP priors.
     :param batch_size:
     :param seq_len:
@@ -277,15 +265,13 @@ def get_batch(
         *hyperparameters.get("fast_computations", (True, True, True))
     ):
         batch_size_per_gp_sample = batch_size_per_gp_sample or max(batch_size // 4, 1)
-        assert (
-            batch_size % batch_size_per_gp_sample == 0
-        ), f"{batch_size} % {batch_size_per_gp_sample} != 0"
+        assert batch_size % batch_size_per_gp_sample == 0, (
+            f"{batch_size} % {batch_size_per_gp_sample} != 0"
+        )
 
         total_num_candidates = batch_size * (2 ** (fix_to_range is not None))
         num_candidates = batch_size_per_gp_sample * (2 ** (fix_to_range is not None))
-        unused_feature_likelihood = hyperparameters.get(
-            "unused_feature_likelihood", False
-        )
+        unused_feature_likelihood = hyperparameters.get("unused_feature_likelihood", False)
         if equidistant_x:
             assert num_features == 1
             assert not unused_feature_likelihood
@@ -297,18 +283,14 @@ def get_batch(
             )
         else:
             if hyperparameters["x_sampler"] == "uni":
-                x = torch.rand(
-                    total_num_candidates, seq_len, num_features, device=device
-                )
+                x = torch.rand(total_num_candidates, seq_len, num_features, device=device)
             elif hyperparameters["x_sampler"] == "normal":
                 unnormalized_x = torch.randn(
                     total_num_candidates, seq_len, num_features, device=device
                 )
                 # Normalize each feature across the seq_len dimension to be within [0,1]
                 # Reshape to make operations easier
-                reshaped_x = unnormalized_x.transpose(
-                    1, 2
-                )  # [batch, features, seq_len]
+                reshaped_x = unnormalized_x.transpose(1, 2)  # [batch, features, seq_len]
                 # Get min and max values for each feature in each batch
                 min_vals, _ = torch.min(reshaped_x, dim=2, keepdim=True)
                 max_vals, _ = torch.max(reshaped_x, dim=2, keepdim=True)
@@ -425,9 +407,5 @@ def get_batch(
     return Batch(
         x=x.float(),
         y=sample,
-        target_y=(
-            sample
-            if hyperparameters.get("observation_noise", True)
-            else sample_wo_noise
-        ),
+        target_y=(sample if hyperparameters.get("observation_noise", True) else sample_wo_noise),
     )

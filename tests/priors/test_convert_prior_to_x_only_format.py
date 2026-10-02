@@ -1,7 +1,9 @@
+import pytest
 import torch
+
 from pfns.priors.convert_prior_to_x_only_format import get_batch
 from pfns.priors.prior import Batch
-import pytest
+
 
 def create_simple_traditional_get_batch(
     batch_size: int,
@@ -12,8 +14,7 @@ def create_simple_traditional_get_batch(
     n_targets_per_input: int = 1,
     **kwargs,
 ) -> Batch:
-    """
-    Simple traditional get_batch function for testing.
+    """Simple traditional get_batch function for testing.
     Creates linear functions: y = sum(x) + noise
     """
     # Generate random input features
@@ -42,9 +43,7 @@ def create_complex_traditional_get_batch(
     n_targets_per_input: int = 1,
     **kwargs,
 ) -> Batch:
-    """
-    More complex traditional get_batch function with optional attributes for testing.
-    """
+    """More complex traditional get_batch function with optional attributes for testing."""
     x = torch.rand(batch_size, seq_len, num_features)
     y = x.mean(dim=2, keepdim=True) + torch.randn(batch_size, seq_len, 1) * 0.2
     target_y = y.repeat(1, 1, n_targets_per_input)
@@ -185,9 +184,7 @@ class TestConvertPriorToXOnlyFormat:
         target_y_test_traditional = traditional_batch.target_y[:, single_eval_pos:, :]
 
         # Check that target in x-only format is [x_test_features, target_y_values]
-        expected_target = torch.cat(
-            [x_test_traditional, target_y_test_traditional], dim=2
-        )
+        expected_target = torch.cat([x_test_traditional, target_y_test_traditional], dim=2)
         torch.testing.assert_close(x_only_batch.target, expected_target)
 
     @pytest.mark.xfail

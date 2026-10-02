@@ -1,13 +1,12 @@
 from math import log, sqrt
 
 import torch
-
 from gpytorch.distributions.multivariate_normal import MultivariateNormal
 from gpytorch.kernels import LinearKernel, MaternKernel, RBFKernel
 from gpytorch.priors import LogNormalPrior
+from torch import Tensor
 
 from pfns.priors.prior import Batch
-from torch import Tensor
 
 
 def sample_clustered_x(
@@ -18,12 +17,11 @@ def sample_clustered_x(
     num_cluster_max: int = 1,
     max_std: float = 0.25,
 ):
-    """
-    This function samples a batch of inputs from normal distributions.
+    """This function samples a batch of inputs from normal distributions.
     Its outputs are all in [0,1], which is ensured by over-sampling (pad_factor)
     and then rejecting outside samples. In addition, we clamp the values to [0,1].
     """
-    num_clusters = torch.randint(1, num_cluster_max + 1, tuple()).item()
+    num_clusters = torch.randint(1, num_cluster_max + 1, ()).item()
 
     mean = torch.rand(batch_size, num_clusters, num_features)
     std = torch.rand(batch_size, num_clusters, num_features) * max_std
@@ -45,9 +43,7 @@ def sample_clustered_x(
     x = x.transpose(1, 2)
     sorting_x = ((x >= 0.0) & (x <= 1.0)).sum(dim=-1)
     order = torch.argsort(sorting_x, dim=-1, stable=True, descending=True)
-    x = x.gather(
-        dim=1, index=order[:, :seq_len].unsqueeze(-1).expand(-1, -1, num_features)
-    )
+    x = x.gather(dim=1, index=order[:, :seq_len].unsqueeze(-1).expand(-1, -1, num_features))
     x = x.clamp(0, 1)
     return x
 
@@ -65,13 +61,9 @@ def sample_around_train_point(
     num_test_points = seq_len - single_eval_pos
     num_surrounding = int(num_test_points * surrounding_share)
 
-    normal_test_x = torch.rand(
-        batch_size, num_test_points - num_surrounding, num_features
-    )
+    normal_test_x = torch.rand(batch_size, num_test_points - num_surrounding, num_features)
     if single_eval_pos > 0:
-        centers = torch.multinomial(
-            torch.ones(single_eval_pos), num_surrounding, replacement=True
-        )
+        centers = torch.multinomial(torch.ones(single_eval_pos), num_surrounding, replacement=True)
         surrounding_test_x = (
             torch.randn(batch_size, num_surrounding, num_features) * surrounding_std
             + train_x[:, centers]
@@ -83,9 +75,7 @@ def sample_around_train_point(
 
 
 # adapted from botorch to support batching
-def inv_kumaraswamy_warp(
-    X: Tensor, c0: Tensor, c1: Tensor, eps: float = 1e-8
-) -> Tensor:
+def inv_kumaraswamy_warp(X: Tensor, c0: Tensor, c1: Tensor, eps: float = 1e-8) -> Tensor:
     """Map warped inputs through an inverse Kumaraswamy CDF.
 
     This takes warped inputs (X) and transforms those via an inverse
@@ -155,14 +145,14 @@ def get_batch(
 
     if top_sampling_share > 0.0:
         oversample_factor = hyperparameters.get("oversample_factor", 1.0)
-        assert (
-            oversample_factor > 1.0
-        ), "oversample_factor must be > 1.0 when top_sampling_share > 0"
+        assert oversample_factor > 1.0, (
+            "oversample_factor must be > 1.0 when top_sampling_share > 0"
+        )
         super_seq_len = round(seq_len * oversample_factor)
     else:
-        assert (
-            hyperparameters.get("oversample_factor", 1.0) == 1.0
-        ), "oversample_factor must be 1.0 when top_sampling_share is 0"
+        assert hyperparameters.get("oversample_factor", 1.0) == 1.0, (
+            "oversample_factor must be 1.0 when top_sampling_share is 0"
+        )
         super_seq_len = seq_len
 
     sample_clustered_x_hp = hyperparameters.get("sample_clustered_x", False)
@@ -201,9 +191,7 @@ def get_batch(
     if (dummy_dim_prob := hyperparameters.get("dummy_dim_prob", 0.0)) > 0.0:
         num_important_features = 0
         while num_important_features == 0:
-            dummy_dims_mask = torch.bernoulli(
-                torch.full((num_features,), dummy_dim_prob)
-            ).bool()
+            dummy_dims_mask = torch.bernoulli(torch.full((num_features,), dummy_dim_prob)).bool()
             used_dims_mask = ~dummy_dims_mask
             num_important_features = used_dims_mask.sum()
     else:
@@ -251,21 +239,15 @@ def get_batch(
     style = None
 
     if hyperparameters.get("additive", False):
-        num_features_in_group1 = torch.randint(0, num_features, tuple()).item()
+        num_features_in_group1 = torch.randint(0, num_features, ()).item()
         perm = torch.randperm(num_features)
         features_in_group1 = perm[:num_features_in_group1]
         features_in_group0 = perm[num_features_in_group1:]
 
-        covar0 = get_covar(
-            length_scales[:, features_in_group0], x_super[:, :, features_in_group0]
-        )
-        covar1 = get_covar(
-            length_scales[:, features_in_group1], x_super[:, :, features_in_group1]
-        )
+        covar0 = get_covar(length_scales[:, features_in_group0], x_super[:, :, features_in_group0])
+        covar1 = get_covar(length_scales[:, features_in_group1], x_super[:, :, features_in_group1])
 
-        d0 = MultivariateNormal(
-            torch.ones_like(x_super[:, :, 0]) * mean[:, None], covar0
-        )
+        d0 = MultivariateNormal(torch.ones_like(x_super[:, :, 0]) * mean[:, None], covar0)
         d1 = MultivariateNormal(torch.zeros_like(x_super[:, :, 0]), covar1)
         y_super: torch.Tensor = d0.sample() + d1.sample()
         style = torch.zeros(batch_size, num_features, 1)
@@ -284,12 +266,8 @@ def get_batch(
     if top_sampling_share > 0.0:
         top_share_of_super = hyperparameters.get("top_share_of_super", 0.1)
         # Calculate sizes with bounds checking using max/min
-        top_k_count = min(
-            max(0, round(top_share_of_super * super_seq_len)), super_seq_len
-        )
-        n_top = min(
-            max(0, round(top_sampling_share * seq_len)), min(top_k_count, seq_len)
-        )
+        top_k_count = min(max(0, round(top_share_of_super * super_seq_len)), super_seq_len)
+        n_top = min(max(0, round(top_sampling_share * seq_len)), min(top_k_count, seq_len))
         n_rest = seq_len - n_top
 
         if top_k_count > 0:
@@ -420,9 +398,7 @@ def get_batch(
         x = inv_kumaraswamy_warp(x, c0, c1)
 
     # set ys to nan in training set
-    number_of_y_hidden = torch.randint(
-        0, hyperparameters.get("max_num_hidden_y", 0) + 1, tuple()
-    )
+    number_of_y_hidden = torch.randint(0, hyperparameters.get("max_num_hidden_y", 0) + 1, ())
     noisy_y[:, single_eval_pos - number_of_y_hidden : single_eval_pos] = torch.nan
 
     if print_infos:

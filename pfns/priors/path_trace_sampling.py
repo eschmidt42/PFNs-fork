@@ -21,9 +21,7 @@ def corner_check(x, corners):
         # For corner points, compute their IDs
         corner_powers = np.array([2**i for i in range(x.shape[1])])
         corner_ids = (x[is_corner] @ corner_powers).round().astype(int)
-        corner_ids = np.array(
-            [cid * x.shape[0] + i for i, cid in enumerate(corner_ids)]
-        )
+        corner_ids = np.array([cid * x.shape[0] + i for i, cid in enumerate(corner_ids)])
 
         # Check which corner IDs are new
         new_corners = np.array([cid not in corners for cid in corner_ids])
@@ -63,8 +61,7 @@ def generate_trace(
     never_local=False,
     dtype=torch.float,
 ):
-    """
-    Generate optimization traces blending exploration and exploitation for batched Gaussian Processes.
+    """Generate optimization traces blending exploration and exploitation for batched Gaussian Processes.
 
     Parameters:
     - L: int, length of the trace.
@@ -94,9 +91,7 @@ def generate_trace(
     u = np.random.uniform(size=(batch_size, 3))
     initial_alpha = u.min(axis=1)
     final_alpha = u.max(axis=1)
-    trace[:, 0] = np.clip(
-        np.random.uniform(-eps[:, None], 1 + eps[:, None], (batch_size, d)), 0, 1
-    )
+    trace[:, 0] = np.clip(np.random.uniform(-eps[:, None], 1 + eps[:, None], (batch_size, d)), 0, 1)
     best_point = trace[:, 0].copy()
 
     # Get initial values using vectorized GP evaluation
@@ -121,11 +116,7 @@ def generate_trace(
                     inc[use_best] = best[use_best]
 
                 if cutoff > 0:
-                    use_cutoff = (
-                        ~use_best
-                        if best is not None
-                        else np.ones(batch_size, dtype=bool)
-                    )
+                    use_cutoff = ~use_best if best is not None else np.ones(batch_size, dtype=bool)
                     random_cutoff_indices = np.random.choice(cutoff, size=batch_size)
                     inc[use_cutoff] = trace[
                         np.arange(batch_size)[use_cutoff],
@@ -133,11 +124,7 @@ def generate_trace(
                     ]
                 else:
                     # No point to sample locally around, just sample globally
-                    use_global = (
-                        ~use_best
-                        if best is not None
-                        else np.ones(batch_size, dtype=bool)
-                    )
+                    use_global = ~use_best if best is not None else np.ones(batch_size, dtype=bool)
                     inc[use_global] = np.clip(
                         np.random.uniform(
                             -eps[use_global, None],
@@ -149,9 +136,7 @@ def generate_trace(
                     )
 
             ret = np.random.normal(inc, sigma[:, None], size=(batch_size, d))
-            return np.clip(
-                ret, [low for low, _ in bounds], [high for _, high in bounds]
-            )
+            return np.clip(ret, [low for low, _ in bounds], [high for _, high in bounds])
 
         def sample_global():
             return np.clip(

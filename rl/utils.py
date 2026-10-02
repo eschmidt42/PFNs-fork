@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import torch
+
 from pfns.model import transformer
 from pfns.train import MainConfig
 
@@ -9,8 +10,7 @@ def load_config_and_model(
     path: str = "tree/pfns/runs/singletaskgp2_clusteredx_0/checkpoint.pt",
     map_location: str | None = None,
 ) -> Tuple[MainConfig, transformer.TableTransformer]:
-    """
-    Load a config and model from a checkpoint file on the local filesystem.
+    """Load a config and model from a checkpoint file on the local filesystem.
 
     Args:
         path: The path to the checkpoint file.

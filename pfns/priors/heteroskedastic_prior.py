@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import torch
 from gpytorch.priors import LogNormalPrior
+
 from pfns.priors import Batch
 
 from .path_stgp import sample_paths
@@ -96,9 +97,7 @@ def get_batch(
     variance_gp_hyperparameters.setdefault("mean_width", 1.0)
 
     if get_batch is None:
-        raise ValueError(
-            "heteroscedastic_noise_prior requires a base get_batch function to wrap"
-        )
+        raise ValueError("heteroscedastic_noise_prior requires a base get_batch function to wrap")
 
     # Get batch from base prior
     base_batch = get_batch(
@@ -145,9 +144,7 @@ def get_batch(
     range_size = torch.rand(batch_size, device=device) * 2  # [0, 2]
     hetero_std = base_std_expanded * (
         1 - range_size.clamp(max=1.0).unsqueeze(1)
-    ) + normalized_variance * (
-        base_std_expanded * range_size.unsqueeze(1)
-    )  # (batch_size, seq_len)
+    ) + normalized_variance * (base_std_expanded * range_size.unsqueeze(1))  # (batch_size, seq_len)
 
     # For homoscedastic noise: just use the base std
     homo_std = base_std_expanded.expand(-1, seq_len)  # (batch_size, seq_len)
@@ -172,9 +169,7 @@ def get_batch(
 
     # Sample Student-t noise using the relationship: t = Z / sqrt(V/df)
     # where Z ~ N(0,1) and V ~ Chi-squared(df)
-    chi2_samples = torch.distributions.Chi2(
-        df.unsqueeze(1).expand(-1, seq_len)
-    ).sample()
+    chi2_samples = torch.distributions.Chi2(df.unsqueeze(1).expand(-1, seq_len)).sample()
     student_t_noise = normal_noise / torch.sqrt(
         chi2_samples / df.unsqueeze(1)
     )  # (batch_size, seq_len)
